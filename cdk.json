@@ -1,0 +1,34 @@
+{
+  "app": "python3 src/cdk_worker/cdk_worker_app.py",
+  "context": {
+    "region": "us-east-2",
+    "account": "613563724766",
+    "environment": "development",
+    "tags": {
+      "Project": "stitch-worker",
+      "Environment": "development",
+      "Owner": "Jason DeCorte"
+    },
+    "naming": {
+      "prefix": "stitch",
+      "suffix": "dev"
+    }
+  },
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "pyproject.toml",
+      ".python-version",
+      "uv.lock",
+      "source.bat",
+      "**/__init__.py",
+      "python/__pycache__",
+      "tests"
+    ]
+  }
+}
