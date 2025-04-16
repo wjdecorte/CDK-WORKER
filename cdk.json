@@ -1,5 +1,5 @@
 {
-  "app": "python3 src/cdk_worker/cdk_worker_app.py",
+  "app": "python3 src/stitch_worker/stitch_worker_app.py",
   "context": {
     "region": "us-east-2",
     "account": "613563724766",
