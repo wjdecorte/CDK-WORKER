@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_lambda_event_sources,
     aws_events,
     aws_events_targets,
+    aws_iam,
     Duration,
     Tags,
 )
@@ -38,7 +39,12 @@ class StitchWorkerStack(Stack):
                 "module": "document_extract",
                 "event_pattern": {
                     "source": ["aws.s3"],
-                    "detail_type": ["S3 Object Created"]
+                    "detail_type": ["Object Created"],
+                    "detail": {
+                        "bucket": {
+                            "name": ["ayd-dev-files"]
+                        }
+                    }
                 },
                 "id_prefix": f"DocumentExtract",
             },
@@ -121,7 +127,12 @@ class StitchWorkerStack(Stack):
             rule_name=f"{prefix}-document-upload-event-rule-{suffix}",
             event_pattern=aws_events.EventPattern(
                 source=['aws.s3'],
-                detail_type=['S3 Object Created']
+                detail_type=['Object Created'],
+                detail={
+                    'bucket': {
+                        'name': ["ayd-dev-files"]
+                    }
+                }
             ),
             targets=[aws_events_targets.EventBus(bus)]
         )
