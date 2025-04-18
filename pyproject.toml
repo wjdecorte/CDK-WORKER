@@ -17,3 +17,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/stitch_worker"]
+
+[dependency-groups]
+dev = [
+    "boto3>=1.37.34",
+]

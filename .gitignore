@@ -11,3 +11,6 @@ wheels/
 
 # CDK
 cdk.out/
+
+# Environment variables
+.env
