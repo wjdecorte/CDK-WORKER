@@ -18,10 +18,10 @@ def handler(event, context):
 
         # publish to event bus
         event_bus = boto3.client('events')
-        event_bus.put_events(
+        response = event_bus.put_events(
             Entries=[
                 {
-                    'Source': 'aws.lambda.feature_extraction',
+                    'Source': 'stitch.worker.feature_extraction',
                     'DetailType': 'Feature Extraction Completed',
                     'Detail': json.dumps({
                         'message': message,
@@ -31,7 +31,7 @@ def handler(event, context):
                 }
             ]
         )
-        
+        logger.info(f"Published to event bus: {response=}")
     return {
         'statusCode': 200,
         'body': json.dumps('Feature extraction completed successfully')

@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import boto3
+from datetime import datetime, timezone
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -18,10 +19,10 @@ def handler(event, context):
 
         # publish to event bus
         event_bus = boto3.client('events')
-        event_bus.put_events(
+        response = event_bus.put_events(
             Entries=[
                 {
-                    'Source': 'aws.lambda.document_extract',
+                    'Source': 'stitch.worker.document_extract',
                     'DetailType': 'Document Extraction Completed',
                     'Detail': json.dumps({
                         'message': message,
@@ -31,7 +32,7 @@ def handler(event, context):
                 }
             ]
         )
-
+        logger.info(f"Published to event bus: {response=}")
     return {
         'statusCode': 200,
         'body': json.dumps('Document extraction completed successfully')

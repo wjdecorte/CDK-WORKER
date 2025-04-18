@@ -52,7 +52,7 @@ class StitchWorkerStack(Stack):
                 "name": "block-processing", 
                 "module": "block_processing",
                 "event_pattern": {
-                    "source": ["aws.lambda.document_extract"],
+                    "source": ["stitch.worker.document_extract"],
                     "detail_type": ["Document Extraction Completed"]
                 },
                 "id_prefix": f"BlockProcessing",
@@ -61,7 +61,7 @@ class StitchWorkerStack(Stack):
                 "name": "document-summary", 
                 "module": "document_summary",
                 "event_pattern": {
-                    "source": ["aws.lambda.block_processing"],
+                    "source": ["stitch.worker.block_processing"],
                     "detail_type": ["Block Processing Completed"]
                 },
                 "id_prefix": f"DocumentSummary",
@@ -70,7 +70,7 @@ class StitchWorkerStack(Stack):
                 "name": "seed-questions", 
                 "module": "seed_questions",
                 "event_pattern": {
-                    "source": ["aws.lambda.document_summary"],
+                    "source": ["stitch.worker.document_summary"],
                     "detail_type": ["Document Summary Generated"]
                 },
                 "id_prefix": f"SeedQuestions",
@@ -79,7 +79,7 @@ class StitchWorkerStack(Stack):
                 "name": "feature-extraction", 
                 "module": "feature_extraction",
                 "event_pattern": {
-                    "source": ["aws.lambda.seed_questions"],
+                    "source": ["stitch.worker.seed_questions"],
                     "detail_type": ["Seed Questions Generated"]
                 },
                 "id_prefix": f"FeatureExtraction",
@@ -103,6 +103,15 @@ class StitchWorkerStack(Stack):
                 handler="index.handler",
                 code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
                 timeout=Duration.seconds(300)
+            )
+
+            # Add EventBridge permissions to Lambda
+            lambda_fn.add_to_role_policy(
+                aws_iam.PolicyStatement(
+                    effect=aws_iam.Effect.ALLOW,
+                    actions=["events:PutEvents"],
+                    resources=[bus.event_bus_arn]
+                )
             )
 
             # Add SQS event source to Lambda
