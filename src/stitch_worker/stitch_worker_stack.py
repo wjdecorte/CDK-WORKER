@@ -16,10 +16,10 @@ class StitchWorkerStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         # Get context values
-        tags = self.node.try_get_context('tags')
-        naming = self.node.try_get_context('naming')
-        prefix = naming['prefix']
-        suffix = naming['suffix']
+        tags = self.node.try_get_context("tags")
+        naming = self.node.try_get_context("naming")
+        prefix = naming["prefix"]
+        suffix = naming["suffix"]
 
         # Apply tags to all resources in the stack
         for key, value in tags.items():
@@ -27,7 +27,7 @@ class StitchWorkerStack(Stack):
 
         # Create EventBridge Bus
         bus = aws_events.EventBus(
-            self, 'StitchEventBridgeBus',
+            self, "StitchEventBridgeBus",
             event_bus_name=f"{prefix}-event-bus-{suffix}"
         )
 
@@ -121,25 +121,25 @@ class StitchWorkerStack(Stack):
 
             # Create EventBridge rule
             aws_events.Rule(
-                self, id=f'Stitch{process['id_prefix']}EventRule',
+                self, id=f"Stitch{process['id_prefix']}EventRule",
                 enabled=True,
                 event_bus=bus,
                 rule_name=f"{prefix}-{process['name']}-event-rule-{suffix}",
-                event_pattern=aws_events.EventPattern(**process['event_pattern']),
+                event_pattern=aws_events.EventPattern(**process["event_pattern"]),
                 targets=[aws_events_targets.SqsQueue(queue)]
             )   
 
         # Create EventBridge rule for S3 Object Created on default event bus
         aws_events.Rule(
-            self, 'StitchDocumentUploadEventRule',
+            self, "StitchDocumentUploadEventRule",
             enabled=True,
             rule_name=f"{prefix}-document-upload-event-rule-{suffix}",
             event_pattern=aws_events.EventPattern(
-                source=['aws.s3'],
-                detail_type=['Object Created'],
+                source=["aws.s3"],
+                detail_type=["Object Created"],
                 detail={
-                    'bucket': {
-                        'name': ["ayd-dev-files"]
+                    "bucket": {
+                        "name": ["ayd-dev-files"]
                     }
                 }
             ),
