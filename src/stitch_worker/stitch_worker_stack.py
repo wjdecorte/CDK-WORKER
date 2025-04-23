@@ -48,7 +48,7 @@ class StitchWorkerStack(Stack):
                 "name": "block-processing",
                 "module": "block_processing",
                 "event_pattern": {
-                    "source": ["stitch.worker.document_extract"],
+                    "source": ["stitch.worker"],
                     "detail_type": [EventType.DOCUMENT_EXTRACTION_COMPLETED],
                 },
                 "id_prefix": "BlockProcessing",
@@ -57,7 +57,7 @@ class StitchWorkerStack(Stack):
                 "name": "document-summary",
                 "module": "document_summary",
                 "event_pattern": {
-                    "source": ["stitch.worker.block_processing"],
+                    "source": ["stitch.worker"],
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                 },
                 "id_prefix": "DocumentSummary",
@@ -66,7 +66,7 @@ class StitchWorkerStack(Stack):
                 "name": "seed-questions",
                 "module": "seed_questions",
                 "event_pattern": {
-                    "source": ["stitch.worker.block_processing"],
+                    "source": ["stitch.worker"],
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                     "detail": {
                         "metadata": {
@@ -80,7 +80,7 @@ class StitchWorkerStack(Stack):
                 "name": "feature-extraction",
                 "module": "feature_extraction",
                 "event_pattern": {
-                    "source": ["stitch.worker.block_processing"],
+                    "source": ["stitch.worker"],
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                     "detail": {
                         "metadata": {

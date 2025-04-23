@@ -127,20 +127,20 @@ Each stage in the pipeline has specific event patterns:
    - Bucket: `ayd-dev-files`
 
 3. **Block Processing**:
-   - Source: `stitch.worker.document_extract`
+   - Source: `stitch.worker`
    - Detail Type: `Document Extraction Completed`
 
 4. **Document Summary**:
-   - Source: `stitch.worker.block_processing`
+   - Source: `stitch.worker`
    - Detail Type: `Block Processing Completed`
 
 5. **Seed Questions**:
-   - Source: `stitch.worker.block_processing`
+   - Source: `stitch.worker`
    - Detail Type: `Block Processing Completed`
    - Requires: `seed_questions_list` in metadata
 
 6. **Feature Extraction**:
-   - Source: `stitch.worker.block_processing`
+   - Source: `stitch.worker`
    - Detail Type: `Block Processing Completed`
    - Requires: `feature_types` in metadata
 
