@@ -2,8 +2,8 @@ import json
 import logging
 import time
 import boto3
-
-from stitch_worker.enums import EventType
+from uuid import uuid4
+from random import randint
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,7 +17,8 @@ def handler(event, context):
         logger.info(f"Generating summary for: {message}")
 
         # Add document summarization logic here
-        time.sleep(30)
+        time.sleep(randint(30, 60))
+        document_summary_id = str(uuid4())
 
         # publish to event bus
         event_bus = boto3.client("events")
@@ -25,9 +26,17 @@ def handler(event, context):
             Entries=[
                 {
                     "Source": "stitch.worker.document_summary",
-                    "DetailType": EventType.DOCUMENT_SUMMARY_GENERATED,
-                    "Detail": json.dumps({"message": message, "status": "COMPLETED"}),
-                    "EventBusName": "stitch-event-bus-dev",
+                    "DetailType": "DocumentSummaryGenerated",
+                    "Detail": json.dumps(
+                        {
+                            "metadata": {
+                                "document_id": message["detail"]["metadata"]["document_id"],
+                                "document_summary_id": document_summary_id,
+                            },
+                            "data": {"status": "COMPLETED"},
+                        }
+                    ),
+                    "EventBusName": "stitch-dev-datastores-bus",
                 }
             ]
         )

@@ -2,8 +2,7 @@ import json
 import logging
 import time
 import boto3
-
-from stitch_worker.enums import EventType
+from random import randint
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,7 +16,7 @@ def handler(event, context):
         logger.info(f"Processing blocks for: {message}")
 
         # Add block processing logic here
-        time.sleep(30)
+        time.sleep(randint(30, 60))
 
         # publish to event bus
         event_bus = boto3.client("events")
@@ -25,9 +24,18 @@ def handler(event, context):
             Entries=[
                 {
                     "Source": "stitch.worker.block_processing",
-                    "DetailType": EventType.BLOCK_PROCESSING_COMPLETED,
-                    "Detail": json.dumps({"message": message, "status": "COMPLETED"}),
-                    "EventBusName": "stitch-event-bus-dev",
+                    "DetailType": "BlockProcessingCompleted",
+                    "Detail": json.dumps(
+                        {
+                            "metadata": {
+                                "document_id": message["detail"]["metadata"]["document_id"],
+                                "seed_questions_list": message["detail"]["metadata"]["seed_questions_list"],
+                                "feature_types": message["detail"]["metadata"]["feature_types"],
+                            },
+                            "data": {"status": "COMPLETED"},
+                        }
+                    ),
+                    "EventBusName": "stitch-dev-datastores-bus",
                 }
             ]
         )

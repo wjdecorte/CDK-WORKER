@@ -29,7 +29,7 @@ class StitchWorkerStack(Stack):
             Tags.of(self).add(key, value)
 
         # Create EventBridge Bus
-        bus = aws_events.EventBus(self, "StitchEventBridgeBus", event_bus_name=f"{prefix}-event-bus-{suffix}")
+        bus = aws_events.EventBus(self, "StitchEventBridgeBus", event_bus_name=f"{prefix}-{suffix}-datastores-bus")
 
         # Define process names
 
@@ -39,7 +39,7 @@ class StitchWorkerStack(Stack):
                 "module": "document_extract",
                 "event_pattern": {
                     "source": ["aws.s3"],
-                    "detail_type": ["Object Created"],
+                    "detail_type": [EventType.S3_OBJECT_CREATED],
                     "detail": {"bucket": {"name": ["ayd-dev-files"]}},
                 },
                 "id_prefix": "DocumentExtract",
@@ -59,11 +59,6 @@ class StitchWorkerStack(Stack):
                 "event_pattern": {
                     "source": ["stitch.worker.block_processing"],
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
-                    "detail": {
-                        "metadata": {
-                            "document_summary": True,
-                        }
-                    },
                 },
                 "id_prefix": "DocumentSummary",
             },
@@ -75,7 +70,7 @@ class StitchWorkerStack(Stack):
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                     "detail": {
                         "metadata": {
-                            "seed_questions_list": [{"question": "What is the name of the person in the document?"}],
+                            "seed_questions_list": [{"exists": True}],
                         }
                     },
                 },
@@ -89,11 +84,7 @@ class StitchWorkerStack(Stack):
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                     "detail": {
                         "metadata": {
-                            "feature_types": [
-                                "text_features",
-                                "table_features",
-                                "image_features",
-                            ],
+                            "feature_types": [{"exists": True}],
                         }
                     },
                 },
@@ -107,7 +98,7 @@ class StitchWorkerStack(Stack):
             queue = aws_sqs.Queue(
                 self,
                 f"{process['id_prefix']}Queue",
-                queue_name=f"{prefix}-{process['name']}-queue-{suffix}",
+                queue_name=f"{prefix}-{suffix}-{process['name']}",
                 visibility_timeout=Duration.seconds(300),
                 retention_period=Duration.days(14),
             )
@@ -116,7 +107,7 @@ class StitchWorkerStack(Stack):
             lambda_fn = aws_lambda.Function(
                 self,
                 f"{process['id_prefix']}Lambda",
-                function_name=f"{prefix}-{process['name']}-lambda-{suffix}",
+                function_name=f"{prefix}-{suffix}-{process['name']}",
                 runtime=aws_lambda.Runtime.PYTHON_3_12,
                 handler="index.handler",
                 code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
@@ -139,7 +130,7 @@ class StitchWorkerStack(Stack):
                 id=f"Stitch{process['id_prefix']}EventRule",
                 enabled=True,
                 event_bus=bus,
-                rule_name=f"{prefix}-{process['name']}-event-rule-{suffix}",
+                rule_name=f"{prefix}-{suffix}-{process['name']}",
                 event_pattern=aws_events.EventPattern(**process["event_pattern"]),
                 targets=[aws_events_targets.SqsQueue(queue)],
             )
@@ -149,10 +140,10 @@ class StitchWorkerStack(Stack):
             self,
             "StitchDocumentUploadEventRule",
             enabled=True,
-            rule_name=f"{prefix}-document-upload-event-rule-{suffix}",
+            rule_name=f"{prefix}-{suffix}-document-upload",
             event_pattern=aws_events.EventPattern(
                 source=["aws.s3"],
-                detail_type=["Object Created"],
+                detail_type=[EventType.S3_OBJECT_CREATED],
                 detail={
                     "bucket": {"name": ["ayd-dev-files"]},
                     "object": {"key": [{"prefix": "jdtest/"}, {"suffix": ".pdf"}]},

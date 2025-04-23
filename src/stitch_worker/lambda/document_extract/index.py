@@ -2,8 +2,8 @@ import json
 import logging
 import time
 import boto3
-
-from stitch_worker.enums import EventType
+from uuid import uuid4
+from random import randint
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,7 +17,8 @@ def handler(event, context):
         logger.info(f"Processing document extraction for: {message}")
 
         # Add document extraction logic here
-        time.sleep(30)
+        time.sleep(randint(30, 60))
+        document_id = str(uuid4())
         # call Textract Async API
         # textract = boto3.client("textract")
         # response = textract.start_document_text_detection(
@@ -40,9 +41,18 @@ def handler(event, context):
             Entries=[
                 {
                     "Source": "stitch.worker.document_extract",
-                    "DetailType": EventType.DOCUMENT_EXTRACTION_COMPLETED,
-                    "Detail": json.dumps({"message": message, "status": "COMPLETED"}),
-                    "EventBusName": "stitch-event-bus-dev",
+                    "DetailType": "DocumentExtractionCompleted",
+                    "Detail": json.dumps(
+                        {
+                            "metadata": {
+                                "document_id": document_id,
+                                "seed_questions_list": [23, 45, 67],
+                                "feature_types": [1, 2, 3],
+                            },
+                            "data": {"status": "COMPLETED"},
+                        }
+                    ),
+                    "EventBusName": "stitch-dev-datastores-bus",
                 }
             ]
         )

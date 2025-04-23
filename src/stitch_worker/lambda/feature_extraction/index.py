@@ -2,8 +2,8 @@ import json
 import logging
 import time
 import boto3
-
-from stitch_worker.enums import EventType
+from uuid import uuid4
+from random import randint
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,7 +17,10 @@ def handler(event, context):
         logger.info(f"Extracting features for: {message}")
 
         # Add feature extraction logic here
-        time.sleep(30)
+        time.sleep(randint(30, 60))
+        feature_extraction_id = str(uuid4())
+        feature_types = message["detail"]["metadata"]["feature_types"]
+        logger.info(f"{feature_types=}")
 
         # publish to event bus
         event_bus = boto3.client("events")
@@ -25,9 +28,17 @@ def handler(event, context):
             Entries=[
                 {
                     "Source": "stitch.worker.feature_extraction",
-                    "DetailType": EventType.FEATURE_EXTRACTION_COMPLETED,
-                    "Detail": json.dumps({"message": message, "status": "COMPLETED"}),
-                    "EventBusName": "stitch-event-bus-dev",
+                    "DetailType": "FeatureExtractionCompleted",
+                    "Detail": json.dumps(
+                        {
+                            "metadata": {
+                                "document_id": message["detail"]["metadata"]["document_id"],
+                                "feature_extraction_id": feature_extraction_id,
+                            },
+                            "data": {"status": "COMPLETED"},
+                        }
+                    ),
+                    "EventBusName": "stitch-dev-datastores-bus",
                 }
             ]
         )
