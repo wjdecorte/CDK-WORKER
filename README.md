@@ -4,17 +4,23 @@ A serverless event-driven document processing pipeline built with AWS CDK. This 
 
 ## Architecture
 
-The system consists of the following components:
+The system consists of two main stacks:
 
-1. **EventBridge Bus**: Central event bus for all document processing events
+### StitchWorkerStack
+1. **EventBridge Bus**: Central event bus for all document processing events (`{prefix}-{suffix}-datastores-bus`)
 2. **SQS Queues**: Message queues for each processing stage
 3. **Lambda Functions**: Serverless functions that process documents at each stage
 4. **EventBridge Rules**: Rules that route events between processing stages
 
+### StitchOrchestrationStack
+1. **EventBridge Bus**: Dedicated bus for orchestration events (`{prefix}-{suffix}-orchestrations`)
+2. **SQS Queue**: Queue for orchestration events (`{prefix}-{suffix}-start-orchestration`)
+3. **EventBridge Rule**: Rule to handle orchestration events
+
 ### Processing Flow
 
 1. **Document Upload**:
-   - S3 upload triggers initial event
+   - S3 upload to `ayd-dev-files` bucket triggers initial event
    - Event is routed to document extraction queue
 
 2. **Document Extraction**:
@@ -24,18 +30,21 @@ The system consists of the following components:
 3. **Block Processing**:
    - Processes document blocks
    - Emits "Block Processing Completed" event
+   - Triggers subsequent processes based on metadata
 
 4. **Document Summary**:
-   - Generates document summary
-   - Emits "Document Summary Generated" event
+   - Generates document summary when block processing completes
+   - Emits "DocumentSummaryGenerated" event
 
-5. **Seed Questions**:
+5. **Seed Questions** (Conditional):
+   - Triggered when block processing completes and `seed_questions_list` exists in metadata
    - Generates questions from document
-   - Emits "Seed Questions Generated" event
+   - Emits "SeedQuestionsGenerated" event
 
-6. **Feature Extraction**:
-   - Extracts features from document
-   - Final stage in the pipeline
+6. **Feature Extraction** (Conditional):
+   - Triggered when block processing completes and `feature_types` exists in metadata
+   - Extracts specified features from document
+   - Emits "FeatureExtractionCompleted" event
 
 ## Prerequisites
 
@@ -110,22 +119,34 @@ Each stage in the pipeline has specific event patterns:
    - Source: `aws.s3`
    - Detail Type: `Object Created`
    - Bucket: `ayd-dev-files`
+   - Object Key: Prefix `jdtest/` and suffix `.pdf`
 
 2. **Document Extraction**:
+   - Source: `aws.s3`
+   - Detail Type: `Object Created`
+   - Bucket: `ayd-dev-files`
+
+3. **Block Processing**:
    - Source: `stitch.worker.document_extract`
    - Detail Type: `Document Extraction Completed`
 
-3. **Block Processing**:
+4. **Document Summary**:
    - Source: `stitch.worker.block_processing`
    - Detail Type: `Block Processing Completed`
 
-4. **Document Summary**:
-   - Source: `stitch.worker.document_summary`
-   - Detail Type: `Document Summary Generated`
-
 5. **Seed Questions**:
-   - Source: `stitch.worker.seed_questions`
-   - Detail Type: `Seed Questions Generated`
+   - Source: `stitch.worker.block_processing`
+   - Detail Type: `Block Processing Completed`
+   - Requires: `seed_questions_list` in metadata
+
+6. **Feature Extraction**:
+   - Source: `stitch.worker.block_processing`
+   - Detail Type: `Block Processing Completed`
+   - Requires: `feature_types` in metadata
+
+7. **Orchestration Events**:
+   - Source: `stitch.orchestration`
+   - Detail Type: `StartOrchestration`
 
 ## Lambda Functions
 
@@ -141,7 +162,7 @@ Each Lambda function:
 Each queue:
 - Has a 5-minute visibility timeout
 - Retains messages for 14 days
-- Is named with the pattern: `{prefix}-{process}-queue-{suffix}`
+- Is named with the pattern: `{prefix}-{suffix}-{process-name}`
 
 ## Cleanup
 
@@ -193,4 +214,4 @@ When you distribute the software, you must:
 - Include the source code
 - Include the license
 - State significant changes made to the software
-- Include the same license with your modifications 
+- Include the same license with your modifications
