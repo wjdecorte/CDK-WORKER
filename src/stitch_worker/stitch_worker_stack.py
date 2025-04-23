@@ -11,6 +11,8 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+from stitch_worker.enums import EventType
+
 
 class StitchWorkerStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -47,7 +49,7 @@ class StitchWorkerStack(Stack):
                 "module": "block_processing",
                 "event_pattern": {
                     "source": ["stitch.worker.document_extract"],
-                    "detail_type": ["Document Extraction Completed"],
+                    "detail_type": [EventType.DOCUMENT_EXTRACTION_COMPLETED],
                 },
                 "id_prefix": "BlockProcessing",
             },
@@ -56,7 +58,12 @@ class StitchWorkerStack(Stack):
                 "module": "document_summary",
                 "event_pattern": {
                     "source": ["stitch.worker.block_processing"],
-                    "detail_type": ["Block Processing Completed"],
+                    "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
+                    "detail": {
+                        "metadata": {
+                            "document_summary": True,
+                        }
+                    },
                 },
                 "id_prefix": "DocumentSummary",
             },
@@ -64,8 +71,13 @@ class StitchWorkerStack(Stack):
                 "name": "seed-questions",
                 "module": "seed_questions",
                 "event_pattern": {
-                    "source": ["stitch.worker.document_summary"],
-                    "detail_type": ["Document Summary Generated"],
+                    "source": ["stitch.worker.block_processing"],
+                    "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
+                    "detail": {
+                        "metadata": {
+                            "seed_questions_list": [{"question": "What is the name of the person in the document?"}],
+                        }
+                    },
                 },
                 "id_prefix": "SeedQuestions",
             },
@@ -73,12 +85,22 @@ class StitchWorkerStack(Stack):
                 "name": "feature-extraction",
                 "module": "feature_extraction",
                 "event_pattern": {
-                    "source": ["stitch.worker.seed_questions"],
-                    "detail_type": ["Seed Questions Generated"],
+                    "source": ["stitch.worker.block_processing"],
+                    "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
+                    "detail": {
+                        "metadata": {
+                            "feature_types": [
+                                "text_features",
+                                "table_features",
+                                "image_features",
+                            ],
+                        }
+                    },
                 },
                 "id_prefix": "FeatureExtraction",
             },
         ]
+
         # Create SQS queues and Lambda functions for each process
         for process in processes:
             # Create SQS queue
@@ -137,4 +159,35 @@ class StitchWorkerStack(Stack):
                 },
             ),
             targets=[aws_events_targets.EventBus(bus)],
+        )
+
+
+class StitchOrchestrationStack(Stack):
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+
+        # Get context values
+        naming = self.node.try_get_context("naming")
+        prefix = naming["prefix"]
+        suffix = naming["suffix"]
+
+        # Create SQS queue
+        queue = aws_sqs.Queue(
+            self,
+            "StitchOrchestrationQueue",
+            queue_name=f"{prefix}-{suffix}-start-orchestration",
+        )
+
+        # Create EventBridge Bus
+        bus = aws_events.EventBus(self, "StitchOrchestrationBus", event_bus_name=f"{prefix}-{suffix}-orchestrations")
+
+        # Create EventBridge rule for S3 Object Created on default event bus
+        aws_events.Rule(
+            self,
+            "StitchOrchestrationRule",
+            event_bus=bus,
+            enabled=True,
+            rule_name=f"{prefix}-{suffix}-start-orchestration",
+            event_pattern=aws_events.EventPattern(source=["stitch.orchestration"], detail_type=["StartOrchestration"]),
+            targets=[aws_events_targets.SqsQueue(queue)],
         )

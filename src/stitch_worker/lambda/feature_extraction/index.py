@@ -3,16 +3,19 @@ import logging
 import time
 import boto3
 
+from stitch_worker.enums import EventType
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
-    
+
     for record in event["Records"]:
         message = json.loads(record["body"])
         logger.info(f"Extracting features for: {message}")
-        
+
         # Add feature extraction logic here
         time.sleep(30)
 
@@ -22,17 +25,11 @@ def handler(event, context):
             Entries=[
                 {
                     "Source": "stitch.worker.feature_extraction",
-                    "DetailType": "Feature Extraction Completed",
-                    "Detail": json.dumps({
-                        "message": message,
-                        "status": "COMPLETED"
-                    }),
-                    "EventBusName": "stitch-event-bus-dev"  
+                    "DetailType": EventType.FEATURE_EXTRACTION_COMPLETED,
+                    "Detail": json.dumps({"message": message, "status": "COMPLETED"}),
+                    "EventBusName": "stitch-event-bus-dev",
                 }
             ]
         )
         logger.info(f"Published to event bus: {response=}")
-    return {
-        "statusCode": 200,
-        "body": json.dumps("Feature extraction completed successfully")
-    }
+    return {"statusCode": 200, "body": json.dumps("Feature extraction completed successfully")}
