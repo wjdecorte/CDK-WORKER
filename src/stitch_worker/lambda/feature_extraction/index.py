@@ -3,24 +3,29 @@ import time
 import boto3
 from uuid import uuid4
 from random import randint
-from typing import Sequence
+from typing import Sequence, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.utilities.parser import event_parser
-from aws_lambda_powertools.utilities.parser.models import SqsModel, SqsRecordModel
+from aws_lambda_powertools.utilities.parser.models import SqsModel, SqsRecordModel, EventBridgeModel
 
 logger = Logger()
 
 
-class StitchWorkerEventBridgeModel(BaseModel):
+class StitchWorkerEventBridgeDetailModel(BaseModel):
     metadata: dict
     data: dict
 
 
+class StitchWorkerEventBridgeModel(EventBridgeModel):
+    source: Literal["stitch.worker"]
+    detail: StitchWorkerEventBridgeDetailModel
+
+
 class SqsStitchWorkerRecordModel(SqsRecordModel):
-    body: StitchWorkerEventBridgeModel
+    body: Json[StitchWorkerEventBridgeModel]
 
 
 class SqsCustomEventNotificationModel(SqsModel):
@@ -39,7 +44,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
         # Add feature extraction logic here
         time.sleep(randint(30, 60))
         feature_extraction_id = str(uuid4())
-        feature_types = custom_event["metadata"]["feature_types"]
+        feature_types = custom_event.metadata.feature_types
         logger.info(f"{feature_types=}")
 
         # publish to event bus
@@ -52,7 +57,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event["metadata"]["document_id"],
+                                "document_id": custom_event.metadata.document_id,
                                 "feature_extraction_id": feature_extraction_id,
                             },
                             "data": {"status": "COMPLETED"},

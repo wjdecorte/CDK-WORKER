@@ -2,24 +2,29 @@ import json
 import time
 import boto3
 from random import randint
-from typing import Sequence
+from typing import Sequence, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.utilities.parser import event_parser
-from aws_lambda_powertools.utilities.parser.models import SqsModel, SqsRecordModel
+from aws_lambda_powertools.utilities.parser.models import SqsModel, SqsRecordModel, EventBridgeModel
 
 logger = Logger()
 
 
-class StitchWorkerEventBridgeModel(BaseModel):
+class StitchWorkerEventBridgeDetailModel(BaseModel):
     metadata: dict
     data: dict
 
 
+class StitchWorkerEventBridgeModel(EventBridgeModel):
+    source: Literal["stitch.worker"]
+    detail: StitchWorkerEventBridgeDetailModel
+
+
 class SqsStitchWorkerRecordModel(SqsRecordModel):
-    body: StitchWorkerEventBridgeModel
+    body: Json[StitchWorkerEventBridgeModel]
 
 
 class SqsCustomEventNotificationModel(SqsModel):
@@ -48,9 +53,9 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event["metadata"]["document_id"],
-                                "seed_questions_list": custom_event["metadata"]["seed_questions_list"],
-                                "feature_types": custom_event["metadata"]["feature_types"],
+                                "document_id": custom_event.metadata.document_id,
+                                "seed_questions_list": custom_event.metadata.seed_questions_list,
+                                "feature_types": custom_event.metadata.feature_types,
                             },
                             "data": {"status": "COMPLETED"},
                         }

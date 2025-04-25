@@ -18,7 +18,7 @@ class S3SqsRecordModel(SqsRecordModel):
 
 
 class SqsS3EventNotificationModel(SqsModel):
-    Records: Sequence[SqsRecordModel]
+    Records: Sequence[S3SqsRecordModel]
 
 
 @logger.inject_lambda_context(log_event=True)
