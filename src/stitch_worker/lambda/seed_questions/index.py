@@ -44,7 +44,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
         # Add seed question generation logic here
         time.sleep(randint(30, 60))
         seed_questions_id = str(uuid4())
-        seed_questions_list = custom_event.metadata.seed_questions_list
+        seed_questions_list = custom_event.detail.metadata["seed_questions_list"]
         logger.info(f"{seed_questions_list=}")
 
         # publish to event bus
@@ -57,7 +57,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event.metadata.document_id,
+                                "document_id": custom_event.detail.metadata["document_id"],
                                 "seed_questions_id": seed_questions_id,
                             },
                             "data": {"status": "COMPLETED"},

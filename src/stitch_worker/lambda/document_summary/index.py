@@ -55,7 +55,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event.metadata.document_id,
+                                "document_id": custom_event.detail.metadata["document_id"],
                                 "document_summary_id": document_summary_id,
                             },
                             "data": {"status": "COMPLETED"},

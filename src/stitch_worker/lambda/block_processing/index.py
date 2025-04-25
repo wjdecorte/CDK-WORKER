@@ -53,9 +53,9 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event.metadata.document_id,
-                                "seed_questions_list": custom_event.metadata.seed_questions_list,
-                                "feature_types": custom_event.metadata.feature_types,
+                                "document_id": custom_event.detail.metadata["document_id"],
+                                "seed_questions_list": custom_event.detail.metadata["seed_questions_list"],
+                                "feature_types": custom_event.detail.metadata["feature_types"],
                             },
                             "data": {"status": "COMPLETED"},
                         }

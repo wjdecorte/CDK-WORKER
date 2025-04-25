@@ -44,7 +44,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
         # Add feature extraction logic here
         time.sleep(randint(30, 60))
         feature_extraction_id = str(uuid4())
-        feature_types = custom_event.metadata.feature_types
+        feature_types = custom_event.detail.metadata["feature_types"]
         logger.info(f"{feature_types=}")
 
         # publish to event bus
@@ -57,7 +57,7 @@ def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": custom_event.metadata.document_id,
+                                "document_id": custom_event.detail.metadata["document_id"],
                                 "feature_extraction_id": feature_extraction_id,
                             },
                             "data": {"status": "COMPLETED"},
