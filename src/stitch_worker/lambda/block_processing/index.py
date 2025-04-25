@@ -1,19 +1,39 @@
 import json
-import logging
 import time
 import boto3
 from random import randint
+from typing import Sequence
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from pydantic import BaseModel
+from aws_lambda_powertools import Logger
+from aws_lambda_powertools.utilities.typing import LambdaContext
+from aws_lambda_powertools.utilities.parser import event_parser
+from aws_lambda_powertools.utilities.parser.models import SqsModel, SqsRecordModel
+
+logger = Logger()
 
 
-def handler(event, context):
-    logger.info(f"Received event: {json.dumps(event)}")
+class StitchWorkerEventBridgeModel(BaseModel):
+    metadata: dict
+    data: dict
 
-    for record in event["Records"]:
-        message = json.loads(record["body"])
-        logger.info(f"Processing blocks for: {message}")
+
+class SqsStitchWorkerRecordModel(SqsRecordModel):
+    body: StitchWorkerEventBridgeModel
+
+
+class SqsCustomEventNotificationModel(SqsModel):
+    Records: Sequence[SqsStitchWorkerRecordModel]
+
+
+@logger.inject_lambda_context(log_event=True)
+@event_parser(model=SqsCustomEventNotificationModel)
+def handler(event: SqsCustomEventNotificationModel, context: LambdaContext):
+    logger.info(f"Received context: {context=}")
+
+    for record in event.Records:
+        custom_event = record.body
+        logger.info(f"Processing blocks for: {custom_event=}")
 
         # Add block processing logic here
         time.sleep(randint(30, 60))
@@ -23,14 +43,14 @@ def handler(event, context):
         response = event_bus.put_events(
             Entries=[
                 {
-                    "Source": "stitch.worker.block_processing",
+                    "Source": "stitch.worker",
                     "DetailType": "BlockProcessingCompleted",
                     "Detail": json.dumps(
                         {
                             "metadata": {
-                                "document_id": message["detail"]["metadata"]["document_id"],
-                                "seed_questions_list": message["detail"]["metadata"]["seed_questions_list"],
-                                "feature_types": message["detail"]["metadata"]["feature_types"],
+                                "document_id": custom_event["metadata"]["document_id"],
+                                "seed_questions_list": custom_event["metadata"]["seed_questions_list"],
+                                "feature_types": custom_event["metadata"]["feature_types"],
                             },
                             "data": {"status": "COMPLETED"},
                         }

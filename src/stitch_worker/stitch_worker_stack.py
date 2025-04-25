@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_iam,
     Duration,
     Tags,
+    Aws,
 )
 from constructs import Construct
 
@@ -23,6 +24,9 @@ class StitchWorkerStack(Stack):
         naming = self.node.try_get_context("naming")
         prefix = naming["prefix"]
         suffix = naming["suffix"]
+        lambda_layer_arn = (
+            f"arn:aws:lambda:{Aws.REGION}:017000801446:layer:AWSLambdaPowertoolsPythonV3-python312-x86_64:12"
+        )
 
         # Apply tags to all resources in the stack
         for key, value in tags.items():
@@ -92,6 +96,13 @@ class StitchWorkerStack(Stack):
             },
         ]
 
+        # add powertools layer
+        powertools_layer = aws_lambda.LayerVersion.from_layer_version_arn(
+            self,
+            id="lambda-powertools",
+            layer_version_arn=lambda_layer_arn,
+        )
+
         # Create SQS queues and Lambda functions for each process
         for process in processes:
             # Create SQS queue
@@ -109,6 +120,7 @@ class StitchWorkerStack(Stack):
                 f"{process['id_prefix']}Lambda",
                 function_name=f"{prefix}-{suffix}-{process['name']}",
                 runtime=aws_lambda.Runtime.PYTHON_3_12,
+                layers=[powertools_layer],
                 handler="index.handler",
                 code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
                 timeout=Duration.seconds(300),

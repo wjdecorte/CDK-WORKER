@@ -7,7 +7,8 @@ authors = [
 ]
 dependencies = [
     "aws-cdk-lib>=2.189.1",
-    "constructs>=10.4.2"
+    "aws-lambda-powertools[parser]>=3.10.0",
+    "constructs>=10.4.2",
 ]
 requires-python = ">=3.12"
 
