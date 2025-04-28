@@ -6,9 +6,9 @@ from aws_cdk import (
     aws_events,
     aws_events_targets,
     aws_iam,
+    aws_ecr,
     Duration,
     Tags,
-    Aws,
 )
 from constructs import Construct
 
@@ -24,9 +24,6 @@ class StitchWorkerStack(Stack):
         naming = self.node.try_get_context("naming")
         prefix = naming["prefix"]
         suffix = naming["suffix"]
-        lambda_layer_arn = (
-            f"arn:aws:lambda:{Aws.REGION}:017000801446:layer:AWSLambdaPowertoolsPythonV3-python312-x86_64:12"
-        )
 
         # Apply tags to all resources in the stack
         for key, value in tags.items():
@@ -96,12 +93,20 @@ class StitchWorkerStack(Stack):
             },
         ]
 
-        # add powertools layer
-        powertools_layer = aws_lambda.LayerVersion.from_layer_version_arn(
+        # # add powertools layer
+        # powertools_layer = aws_lambda.LayerVersion.from_layer_version_arn(
+        #     self,
+        #     id="lambda-powertools",
+        #     layer_version_arn=lambda_layer_arn,
+        # )
+
+        repository = aws_ecr.Repository.from_repository_arn(
             self,
-            id="lambda-powertools",
-            layer_version_arn=lambda_layer_arn,
+            "StitchWorkerRepository",
+            repository_arn="arn:aws:ecr:us-east-2:613563724766:repository/stitch-worker",
         )
+        # image_repository = repository.repository_uri
+        image_tag = "0.1.2"
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
@@ -115,15 +120,28 @@ class StitchWorkerStack(Stack):
             )
 
             # Create Lambda function
-            lambda_fn = aws_lambda.Function(
+            lambda_fn = aws_lambda.DockerImageFunction(
                 self,
                 f"{process['id_prefix']}Lambda",
                 function_name=f"{prefix}-{suffix}-{process['name']}",
-                runtime=aws_lambda.Runtime.PYTHON_3_12,
-                layers=[powertools_layer],
-                handler="index.handler",
-                code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
+                code=aws_lambda.DockerImageCode.from_ecr(
+                    repository=repository,
+                    tag_or_digest=image_tag,
+                    cmd=["stitch_worker.handlers.document_extract.index.handler"],
+                ),
+                # runtime=aws_lambda.Runtime.PYTHON_3_12,
+                # layers=[powertools_layer],
+                # code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
                 timeout=Duration.seconds(300),
+                environment={
+                    "DEBUG_MODE": "True",
+                    "POWERTOOLS_SERVICE_NAME": "stitch_worker",
+                    "POWERTOOLS_LOG_LEVEL": "DEBUG",
+                    "POWERTOOLS_LOG_FORMAT": "JSON",
+                    "EVENT_BUS_NAME": bus.event_bus_name,
+                    "LOGGER_NAME": "stitch_worker",
+                    "LOG_LEVEL": "DEBUG",
+                },
             )
 
             # Add EventBridge permissions to Lambda
