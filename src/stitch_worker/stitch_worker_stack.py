@@ -106,7 +106,7 @@ class StitchWorkerStack(Stack):
             repository_arn="arn:aws:ecr:us-east-2:613563724766:repository/stitch-worker",
         )
         # image_repository = repository.repository_uri
-        image_tag = "0.1.2"
+        image_tag = "0.1.3"
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
@@ -127,7 +127,7 @@ class StitchWorkerStack(Stack):
                 code=aws_lambda.DockerImageCode.from_ecr(
                     repository=repository,
                     tag_or_digest=image_tag,
-                    cmd=["stitch_worker.handlers.document_extract.index.handler"],
+                    cmd=[f"stitch_worker.handlers.{process['module']}.index.handler"],
                 ),
                 # runtime=aws_lambda.Runtime.PYTHON_3_12,
                 # layers=[powertools_layer],
