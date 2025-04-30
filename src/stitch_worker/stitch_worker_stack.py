@@ -106,6 +106,7 @@ class StitchWorkerStack(Stack):
         )
 
         image_tag = settings["lambda_image_tag"]
+        print(f"Using image tag: {image_tag}")
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
