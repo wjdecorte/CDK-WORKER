@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_ecr,
     Duration,
     Tags,
+    aws_sns,
 )
 from constructs import Construct
 
@@ -32,8 +33,12 @@ class StitchWorkerStack(Stack):
         # Create EventBridge Bus
         bus = aws_events.EventBus(self, "StitchEventBridgeBus", event_bus_name=f"{prefix}-{suffix}-datastores-bus")
 
-        # Define process names
+        # Create SNS Topic
+        topic = aws_sns.Topic(
+            self, "TextExtractionTopic", topic_name=f"AmazonTextract-{prefix}-{suffix}-text-extraction-topic"
+        )
 
+        # Define process names
         processes = [
             {
                 "name": "document-extract",
@@ -93,20 +98,13 @@ class StitchWorkerStack(Stack):
             },
         ]
 
-        # # add powertools layer
-        # powertools_layer = aws_lambda.LayerVersion.from_layer_version_arn(
-        #     self,
-        #     id="lambda-powertools",
-        #     layer_version_arn=lambda_layer_arn,
-        # )
-
         repository = aws_ecr.Repository.from_repository_arn(
             self,
             "StitchWorkerRepository",
             repository_arn="arn:aws:ecr:us-east-2:613563724766:repository/stitch-worker",
         )
-        # image_repository = repository.repository_uri
-        image_tag = "0.1.3"
+
+        image_tag = "0.1.4"
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
@@ -129,9 +127,6 @@ class StitchWorkerStack(Stack):
                     tag_or_digest=image_tag,
                     cmd=[f"stitch_worker.handlers.{process['module']}.index.handler"],
                 ),
-                # runtime=aws_lambda.Runtime.PYTHON_3_12,
-                # layers=[powertools_layer],
-                # code=aws_lambda.Code.from_asset(f"src/stitch_worker/lambda/{process['module']}"),
                 timeout=Duration.seconds(300),
                 environment={
                     "DEBUG_MODE": "True",
@@ -141,6 +136,10 @@ class StitchWorkerStack(Stack):
                     "EVENT_BUS_NAME": bus.event_bus_name,
                     "LOGGER_NAME": "stitch_worker",
                     "LOG_LEVEL": "DEBUG",
+                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": topic.topic_arn,
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": "arn:aws:iam::aws:policy/service-role/AmazonTextractServiceRole",
+                    "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
+                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
             )
 
