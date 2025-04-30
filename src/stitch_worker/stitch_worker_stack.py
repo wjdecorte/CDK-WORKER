@@ -129,6 +129,7 @@ class StitchWorkerStack(Stack):
                     tag_or_digest=image_tag,
                     cmd=[f"stitch_worker.handlers.{process['module']}.index.handler"],
                 ),
+                logging_format=aws_lambda.LoggingFormat.JSON,
                 timeout=Duration.seconds(300),
                 environment={
                     "DEBUG_MODE": "True",
