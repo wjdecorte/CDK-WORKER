@@ -39,6 +39,18 @@ class StitchWorkerStack(Stack):
             self, "TextExtractionTopic", topic_name=f"AmazonTextract-{prefix}-{suffix}-text-extraction-topic"
         )
 
+        # Create IAM Role for Textract to publish to SNS Topic
+        role = aws_iam.Role(
+            self,
+            "TextractSNSRole",
+            role_name=f"{prefix}-{suffix}-textract-sns-role",
+            assumed_by=aws_iam.ServicePrincipal("textract.amazonaws.com"),
+            managed_policies=[
+                aws_iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonTextractServiceRole")
+            ],
+            description="Role for Textract to publish to SNS Topic",
+        )
+
         # Define process names
         processes = [
             {
@@ -140,7 +152,7 @@ class StitchWorkerStack(Stack):
                     "LOGGER_NAME": "stitch_worker",
                     "LOG_LEVEL": "DEBUG",
                     "TEXT_EXTRACTION_SNS_TOPIC_ARN": topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": settings["text_extraction_sns_role_arn"],
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": role.role_arn,
                     "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
@@ -178,7 +190,7 @@ class StitchWorkerStack(Stack):
                 detail_type=[EventType.S3_OBJECT_CREATED],
                 detail={
                     "bucket": {"name": ["ayd-dev-files"]},
-                    "object": {"key": [{"prefix": "jdtest/"}, {"suffix": ".pdf"}]},
+                    "object": {"key": [{"wildcard": "jdtest/*.pdf"}]},
                 },
             ),
             targets=[aws_events_targets.EventBus(bus)],
