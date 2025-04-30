@@ -23,6 +23,7 @@ class StitchWorkerStack(Stack):
         # Get context values
         tags = self.node.try_get_context("tags")
         naming = self.node.try_get_context("naming")
+        settings = self.node.try_get_context("settings")
         prefix = naming["prefix"]
         suffix = naming["suffix"]
 
@@ -104,7 +105,7 @@ class StitchWorkerStack(Stack):
             repository_arn="arn:aws:ecr:us-east-2:613563724766:repository/stitch-worker",
         )
 
-        image_tag = "0.1.4"
+        image_tag = settings["lambda_image_tag"]
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
@@ -137,7 +138,7 @@ class StitchWorkerStack(Stack):
                     "LOGGER_NAME": "stitch_worker",
                     "LOG_LEVEL": "DEBUG",
                     "TEXT_EXTRACTION_SNS_TOPIC_ARN": topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": "arn:aws:iam::aws:policy/service-role/AmazonTextractServiceRole",
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": settings["text_extraction_sns_role_arn"],
                     "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
