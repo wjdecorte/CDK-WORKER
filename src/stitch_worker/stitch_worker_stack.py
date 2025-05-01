@@ -165,6 +165,22 @@ class StitchWorkerStack(Stack):
                 )
             )
 
+            if process["name"] == "document-extract":
+                lambda_fn.add_to_role_policy(
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["textract:StartDocumentAnalysis"],
+                        resources=["*"],
+                    )
+                )
+                lambda_fn.add_to_role_policy(
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    )
+                )
+
             # Add SQS event source to Lambda
             lambda_fn.add_event_source(aws_lambda_event_sources.SqsEventSource(queue))
 
