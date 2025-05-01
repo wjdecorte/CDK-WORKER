@@ -21,6 +21,4 @@ build-backend = "hatchling.build"
 packages = ["src/stitch_worker"]
 
 [dependency-groups]
-dev = [
-    "boto3>=1.37.34",
-]
+dev = []
