@@ -8,3 +8,5 @@ class EventType(StrEnum):
     FEATURE_EXTRACTION_COMPLETED = "FeatureExtractionCompleted"
     DOCUMENT_EXTRACTION_COMPLETED = "DocumentExtractionCompleted"
     S3_OBJECT_CREATED = "Object Created"
+    SPLIT_FILE_COMPLETED = "SplitFileCompleted"
+    TEXT_EXTRACT_SYNC_COMPLETED = "TextExtractSyncCompleted"

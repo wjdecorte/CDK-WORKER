@@ -104,9 +104,34 @@ class StitchWorkerStack(Stack):
                 },
                 "id_prefix": "FeatureExtraction",
             },
+            {
+                "name": "split-file",
+                "module": "split_file",
+                "event_pattern": {
+                    "source": ["aws.s3"],
+                    "detail_type": [EventType.S3_OBJECT_CREATED],
+                    "detail": {"bucket": {"name": ["ayd-dev-files"]}},
+                },
+                "id_prefix": "SplitFile",
+            },
+            {
+                "name": "text-extract-sync",
+                "module": "text_extract_sync",
+                "event_pattern": {
+                    "source": ["aws.s3"],
+                    "detail_type": [EventType.SPLIT_FILE_COMPLETED],
+                    "detail": {
+                        "data": {
+                            "image_s3_urls": [{"exists": True}],
+                        }
+                    },
+                },
+                "id_prefix": "TextExtractSync",
+            },
         ]
 
-        topic, queue, role = self.create_text_extraction_notification_lambda()
+        text_extract_topic, text_extract_queue, text_extract_role = self.create_text_extraction_notification_lambda()
+
         # Create SQS queues and Lambda functions for each process
         for process in processes:
             # Create SQS queue
@@ -138,8 +163,8 @@ class StitchWorkerStack(Stack):
                     "EVENT_BUS_NAME": bus.event_bus_name,
                     "LOGGER_NAME": "stitch_worker",
                     "LOG_LEVEL": "DEBUG",
-                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": role.role_arn,
+                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": text_extract_topic.topic_arn,
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": text_extract_role.role_arn,
                     "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
