@@ -118,7 +118,7 @@ class StitchWorkerStack(Stack):
                 "name": "text-extract-sync",
                 "module": "text_extract_sync",
                 "event_pattern": {
-                    "source": ["aws.s3"],
+                    "source": ["stitch.worker"],
                     "detail_type": [EventType.SPLIT_FILE_COMPLETED],
                     "detail": {
                         "data": {
