@@ -57,6 +57,18 @@ class StitchWorkerStack(Stack):
                     "detail": {"bucket": {"name": ["ayd-dev-files"]}},
                 },
                 "id_prefix": "DocumentExtract",
+                "additional_policies": [
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    ),
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["textract:StartDocumentAnalysis"],
+                        resources=["*"],
+                    ),
+                ],
             },
             {
                 "name": "block-processing",
@@ -66,6 +78,7 @@ class StitchWorkerStack(Stack):
                     "detail_type": [EventType.DOCUMENT_EXTRACTION_COMPLETED],
                 },
                 "id_prefix": "BlockProcessing",
+                "additional_policies": [],
             },
             {
                 "name": "document-summary",
@@ -75,6 +88,7 @@ class StitchWorkerStack(Stack):
                     "detail_type": [EventType.BLOCK_PROCESSING_COMPLETED],
                 },
                 "id_prefix": "DocumentSummary",
+                "additional_policies": [],
             },
             {
                 "name": "seed-questions",
@@ -89,6 +103,7 @@ class StitchWorkerStack(Stack):
                     },
                 },
                 "id_prefix": "SeedQuestions",
+                "additional_policies": [],
             },
             {
                 "name": "feature-extraction",
@@ -103,6 +118,7 @@ class StitchWorkerStack(Stack):
                     },
                 },
                 "id_prefix": "FeatureExtraction",
+                "additional_policies": [],
             },
             {
                 "name": "split-file",
@@ -113,6 +129,13 @@ class StitchWorkerStack(Stack):
                     "detail": {"bucket": {"name": ["ayd-dev-files"]}},
                 },
                 "id_prefix": "SplitFile",
+                "additional_policies": [
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    ),
+                ],
             },
             {
                 "name": "text-extract-sync",
@@ -127,6 +150,18 @@ class StitchWorkerStack(Stack):
                     },
                 },
                 "id_prefix": "TextExtractSync",
+                "additional_policies": [
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["textract:AnalyzeDocument"],
+                        resources=["*"],
+                    ),
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    ),
+                ],
             },
         ]
 
@@ -158,7 +193,7 @@ class StitchWorkerStack(Stack):
                 environment={
                     "DEBUG_MODE": "True",
                     "POWERTOOLS_SERVICE_NAME": "stitch_worker",
-                    "POWERTOOLS_LOG_LEVEL": "DEBUG",
+                    "POWERTOOLS_LOG_LEVEL": "INFO",
                     "POWERTOOLS_LOG_FORMAT": "JSON",
                     "EVENT_BUS_NAME": bus.event_bus_name,
                     "LOGGER_NAME": "stitch_worker",
@@ -177,21 +212,9 @@ class StitchWorkerStack(Stack):
                 )
             )
 
-            if process["name"] == "document-extract":
-                lambda_fn.add_to_role_policy(
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["textract:StartDocumentAnalysis"],
-                        resources=["*"],
-                    )
-                )
-                lambda_fn.add_to_role_policy(
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    )
-                )
+            if policies := process.get("additional_policies"):
+                for policy in policies:
+                    lambda_fn.add_to_role_policy(policy)
 
             # Add SQS event source to Lambda
             lambda_fn.add_event_source(aws_lambda_event_sources.SqsEventSource(queue))
