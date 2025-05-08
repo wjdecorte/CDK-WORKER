@@ -136,6 +136,7 @@ class StitchWorkerStack(Stack):
                         resources=["*"],
                     ),
                 ],
+                "memory_size": 2048,
             },
             {
                 "name": "text-extract-sync",
@@ -203,6 +204,7 @@ class StitchWorkerStack(Stack):
                     "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
+                memory_size=process.get("memory_size", 128),
             )
 
             # Add EventBridge permissions to Lambda
