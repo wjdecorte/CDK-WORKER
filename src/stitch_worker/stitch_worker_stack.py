@@ -295,6 +295,12 @@ class StitchWorkerStack(Stack):
             },
         )
 
+        lambda_fn.add_to_role_policy(
+            aws_iam.PolicyStatement(
+                effect=aws_iam.Effect.ALLOW, actions=["events:PutEvents"], resources=[self.bus.event_bus_arn]
+            )
+        )
+
         lambda_fn.add_event_source(aws_lambda_event_sources.SqsEventSource(queue))
 
         # Create IAM Role for Textract to publish to SNS Topic
