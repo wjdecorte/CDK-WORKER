@@ -32,17 +32,17 @@ class StitchWorkerStack(Stack):
         for key, value in tags.items():
             Tags.of(self).add(key, value)
 
-        repository = aws_ecr.Repository.from_repository_arn(
+        self.repository = aws_ecr.Repository.from_repository_arn(
             self,
             "StitchWorkerRepository",
             repository_arn="arn:aws:ecr:us-east-2:613563724766:repository/stitch-worker",
         )
 
-        image_tag = settings["lambda_image_tag"]
-        print(f"Using image tag: {image_tag}")
+        self.image_tag = settings["lambda_image_tag"]
+        print(f"Using image tag: {self.image_tag}")
 
         # Create EventBridge Bus
-        bus = aws_events.EventBus(
+        self.bus = aws_events.EventBus(
             self, "StitchEventBridgeBus", event_bus_name=f"{self.prefix}-{self.suffix}-datastores-bus"
         )
 
@@ -166,7 +166,9 @@ class StitchWorkerStack(Stack):
             },
         ]
 
-        text_extract_topic, text_extract_queue, text_extract_role = self.create_text_extraction_notification_lambda()
+        document_extraction_topic, document_extraction_queue, document_extraction_role = (
+            self.create_document_extraction_notification_lambda()
+        )
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:
@@ -185,8 +187,8 @@ class StitchWorkerStack(Stack):
                 f"{process['id_prefix']}Lambda",
                 function_name=f"{self.prefix}-{self.suffix}-{process['name']}",
                 code=aws_lambda.DockerImageCode.from_ecr(
-                    repository=repository,
-                    tag_or_digest=image_tag,
+                    repository=self.repository,
+                    tag_or_digest=self.image_tag,
                     cmd=[f"stitch_worker.handlers.{process['module']}.index.handler"],
                 ),
                 logging_format=aws_lambda.LoggingFormat.JSON,
@@ -196,11 +198,11 @@ class StitchWorkerStack(Stack):
                     "POWERTOOLS_SERVICE_NAME": "stitch_worker",
                     "POWERTOOLS_LOG_LEVEL": "INFO",
                     "POWERTOOLS_LOG_FORMAT": "JSON",
-                    "EVENT_BUS_NAME": bus.event_bus_name,
+                    "EVENT_BUS_NAME": self.bus.event_bus_name,
                     "LOGGER_NAME": "stitch_worker",
                     "LOG_LEVEL": "DEBUG",
-                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": text_extract_topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": text_extract_role.role_arn,
+                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": document_extraction_topic.topic_arn,
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": document_extraction_role.role_arn,
                     "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                 },
@@ -210,7 +212,7 @@ class StitchWorkerStack(Stack):
             # Add EventBridge permissions to Lambda
             lambda_fn.add_to_role_policy(
                 aws_iam.PolicyStatement(
-                    effect=aws_iam.Effect.ALLOW, actions=["events:PutEvents"], resources=[bus.event_bus_arn]
+                    effect=aws_iam.Effect.ALLOW, actions=["events:PutEvents"], resources=[self.bus.event_bus_arn]
                 )
             )
 
@@ -227,7 +229,7 @@ class StitchWorkerStack(Stack):
                     self,
                     id=f"Stitch{process['id_prefix']}EventRule",
                     enabled=True,
-                    event_bus=bus,
+                    event_bus=self.bus,
                     rule_name=f"{self.prefix}-{self.suffix}-{process['name']}",
                     event_pattern=aws_events.EventPattern(**process["event_pattern"]),
                     targets=[aws_events_targets.SqsQueue(queue)],
@@ -247,10 +249,10 @@ class StitchWorkerStack(Stack):
                     "object": {"key": [{"wildcard": "jdtest/*.pdf"}]},
                 },
             ),
-            targets=[aws_events_targets.EventBus(bus)],
+            targets=[aws_events_targets.EventBus(self.bus)],
         )
 
-    def create_text_extraction_notification_lambda(self):
+    def create_document_extraction_notification_lambda(self):
         # Create SNS Topic
         topic = aws_sns.Topic(
             self, "TextExtractionTopic", topic_name=f"AmazonTextract-{self.prefix}-{self.suffix}-text-extraction-topic"
@@ -261,21 +263,35 @@ class StitchWorkerStack(Stack):
             self,
             "TextExtractionNotificationQueue",
             queue_name=f"{self.prefix}-{self.suffix}-text-extraction-notification",
+            visibility_timeout=Duration.seconds(300),
+            retention_period=Duration.days(14),
         )
 
         # Add SNS Topic to SQS Queue
         topic.add_subscription(aws_sns_subscriptions.SqsSubscription(queue))
 
         # Add Lambda Function to SQS Queue
-        lambda_fn = aws_lambda.Function(
+        lambda_fn = aws_lambda.DockerImageFunction(
             self,
-            "TextExtractionNotificationLambda",
-            function_name=f"{self.prefix}-{self.suffix}-text-extraction-notification",
-            code=aws_lambda.Code.from_asset("src/stitch_worker/handlers/text_extract_notification"),
-            handler="index.handler",
-            runtime=aws_lambda.Runtime.PYTHON_3_12,
+            "DocumentExtractionNotificationLambda",
+            function_name=f"{self.prefix}-{self.suffix}-document-extraction-notification",
+            code=aws_lambda.DockerImageCode.from_ecr(
+                repository=self.repository,
+                tag_or_digest=self.image_tag,
+                cmd=["stitch_worker.handlers.document_extraction_notification.index.handler"],
+            ),
+            logging_format=aws_lambda.LoggingFormat.JSON,
+            timeout=Duration.seconds(300),
             environment={
-                "TEXT_EXTRACTION_SNS_TOPIC_ARN": topic.topic_arn,
+                "DEBUG_MODE": "True",
+                "POWERTOOLS_SERVICE_NAME": "stitch_worker",
+                "POWERTOOLS_LOG_LEVEL": "INFO",
+                "POWERTOOLS_LOG_FORMAT": "JSON",
+                "EVENT_BUS_NAME": self.bus.event_bus_name,
+                "LOGGER_NAME": "stitch_worker",
+                "LOG_LEVEL": "DEBUG",
+                "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
+                "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
             },
         )
 
