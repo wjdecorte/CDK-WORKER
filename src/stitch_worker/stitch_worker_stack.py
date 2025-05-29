@@ -46,6 +46,11 @@ class StitchWorkerStack(Stack):
             self, "StitchEventBridgeBus", event_bus_name=f"{self.prefix}-{self.suffix}-datastores-bus"
         )
 
+        if settings["lambda_document_extraction"]:
+            document_extraction_topic, document_extraction_queue, document_extraction_role = (
+                self.create_document_extraction_notification_lambda()
+            )
+
         # Define process names
         processes = [
             {
@@ -70,6 +75,12 @@ class StitchWorkerStack(Stack):
                         resources=["*"],
                     ),
                 ],
+                "environment": {
+                    "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
+                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
+                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": document_extraction_topic.topic_arn,
+                    "TEXT_EXTRACTION_SNS_ROLE_ARN": document_extraction_role.role_arn,
+                },
             },
             {
                 "name": "block-standardization",
@@ -87,6 +98,9 @@ class StitchWorkerStack(Stack):
                         resources=["*"],
                     ),
                 ],
+                "environment": {
+                    "BLOCK_SKIP_KEY_VALUE_SET": "False",
+                },
             },
             {
                 "name": "document-summary",
@@ -152,11 +166,15 @@ class StitchWorkerStack(Stack):
             },
         ]
 
-        if settings["lambda_document_extraction"]:
-            document_extraction_topic, document_extraction_queue, document_extraction_role = (
-                self.create_document_extraction_notification_lambda()
-            )
-
+        default_environment = {
+            "DEBUG_MODE": "True",
+            "POWERTOOLS_SERVICE_NAME": "stitch_worker",
+            "POWERTOOLS_LOG_LEVEL": "INFO",
+            "POWERTOOLS_LOG_FORMAT": "JSON",
+            "EVENT_BUS_NAME": self.bus.event_bus_name,
+            "LOGGER_NAME": "stitch_worker",
+            "LOG_LEVEL": "DEBUG",
+        }
         # Create SQS queues and Lambda functions for each process
         for process in processes:
             if not process["enabled"]:
@@ -183,19 +201,7 @@ class StitchWorkerStack(Stack):
                 ),
                 logging_format=aws_lambda.LoggingFormat.JSON,
                 timeout=Duration.seconds(300),
-                environment={
-                    "DEBUG_MODE": "True",
-                    "POWERTOOLS_SERVICE_NAME": "stitch_worker",
-                    "POWERTOOLS_LOG_LEVEL": "INFO",
-                    "POWERTOOLS_LOG_FORMAT": "JSON",
-                    "EVENT_BUS_NAME": self.bus.event_bus_name,
-                    "LOGGER_NAME": "stitch_worker",
-                    "LOG_LEVEL": "DEBUG",
-                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": document_extraction_topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": document_extraction_role.role_arn,
-                    "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
-                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
-                },
+                environment=default_environment | process.get("environment", {}),
                 memory_size=process.get("memory_size", 128),
             )
 
