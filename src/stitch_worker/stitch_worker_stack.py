@@ -11,6 +11,7 @@ from aws_cdk import (
     Duration,
     Tags,
     aws_sns,
+    aws_secretsmanager,
 )
 from constructs import Construct
 
@@ -100,6 +101,32 @@ class StitchWorkerStack(Stack):
                 ],
                 "environment": {
                     "BLOCK_SKIP_KEY_VALUE_SET": "False",
+                },
+            },
+            {
+                "name": "block-summarization",
+                "enabled": settings["lambda_block_summarization"],
+                "module": "block_summarization",
+                "event_pattern": {
+                    "source": ["stitch.worker"],
+                    "detail_type": [EventType.BLOCK_STANDARDIZATION_COMPLETED],
+                },
+                "id_prefix": "BlockSummarization",
+                "additional_policies": [
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    ),
+                ],
+                "environment": {
+                    "OPENAI_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
+                        self,
+                        "WorkerSecret",
+                        secret_name="ayd/dev/worker",
+                    )
+                    .secret_value_from_json("OPENAI_API_KEY")
+                    .to_string(),
                 },
             },
             {
@@ -217,7 +244,7 @@ class StitchWorkerStack(Stack):
                     lambda_fn.add_to_role_policy(policy)
 
             # Add SQS event source to Lambda
-            lambda_fn.add_event_source(aws_lambda_event_sources.SqsEventSource(queue))
+            lambda_fn.add_event_source(aws_lambda_event_sources.SqsEventSource(queue, batch_size=1))
 
             # Create EventBridge rule
             if process["event_pattern"]:
