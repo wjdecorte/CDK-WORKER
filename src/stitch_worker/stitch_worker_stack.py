@@ -224,7 +224,7 @@ class StitchWorkerStack(Stack):
                 code=aws_lambda.DockerImageCode.from_ecr(
                     repository=self.repository,
                     tag_or_digest=self.image_tag,
-                    cmd=[f"stitch_worker.handlers.{process['module']}.index.handler"],
+                    cmd=[f"worker.handlers.{process['module']}.index.handler"],
                 ),
                 logging_format=aws_lambda.LoggingFormat.JSON,
                 timeout=Duration.seconds(300),
@@ -301,7 +301,7 @@ class StitchWorkerStack(Stack):
             code=aws_lambda.DockerImageCode.from_ecr(
                 repository=self.repository,
                 tag_or_digest=self.image_tag,
-                cmd=["stitch_worker.handlers.document_extraction_notification.index.handler"],
+                cmd=["worker.handlers.document_extraction_notification.index.handler"],
             ),
             logging_format=aws_lambda.LoggingFormat.JSON,
             timeout=Duration.seconds(300),
