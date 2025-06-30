@@ -7,6 +7,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_image_tag: str
     lambda_block_standardization: bool = True
     lambda_block_summarization: bool = True
+    lambda_block_refinement: bool = True
     lambda_document_summary: bool = False
     lambda_seed_questions: bool = False
     lambda_feature_extraction: bool = False

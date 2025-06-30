@@ -130,6 +130,40 @@ class StitchWorkerStack(Stack):
                 },
             },
             {
+                "name": "block-refinement",
+                "enabled": settings["lambda_block_refinement"],
+                "module": "block_refinement",
+                "event_pattern": {
+                    "source": ["stitch.worker"],
+                    "detail_type": [EventType.BLOCK_SUMMARIZATION_COMPLETED],
+                },
+                "id_prefix": "BlockRefinement",
+                "additional_policies": [
+                    aws_iam.PolicyStatement(
+                        effect=aws_iam.Effect.ALLOW,
+                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
+                        resources=["*"],
+                    ),
+                ],
+                "environment": {
+                    "OPENAI_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
+                        self,
+                        "WorkerSecretOpenAI",
+                        secret_name="ayd/dev/worker",
+                    )
+                    .secret_value_from_json("OPENAI_API_KEY")
+                    .to_string(),
+                    "PINECONE_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
+                        self,
+                        "WorkerSecretPinecone",
+                        secret_name="ayd/dev/worker",
+                    )
+                    .secret_value_from_json("PINECONE_API_KEY")
+                    .to_string(),
+                    "PINECONE_INDEX_NAME": "ayd-cosine-staging",
+                },
+            },
+            {
                 "name": "document-summary",
                 "enabled": settings["lambda_document_summary"],
                 "module": "document_summary",
