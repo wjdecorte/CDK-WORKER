@@ -283,10 +283,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aws-cdk-lib", specifier = ">=2.189.1" },
-    { name = "aws-lambda-powertools", extras = ["parser"], specifier = ">=3.10.0" },
-    { name = "constructs", specifier = ">=10.4.2" },
-    { name = "pydantic-settings", specifier = ">=2.9.1" },
+    { name = "aws-cdk-lib", specifier = "==2.*" },
+    { name = "aws-lambda-powertools", extras = ["parser"], specifier = "==3.*" },
+    { name = "constructs", specifier = "==10.*" },
+    { name = "pydantic-settings", specifier = "==2.*" },
 ]
 
 [package.metadata.requires-dev]

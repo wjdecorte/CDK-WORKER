@@ -1,23 +1,26 @@
 {
   "app": "python3 src/stitch_worker/stitch_worker_app.py",
   "context": {
-    "region": "us-east-2",
-    "account": "613563724766",
-    "environment": "development",
-    "tags": {
-      "Project": "stitch-worker",
-      "Environment": "development",
-      "Owner": "Jason DeCorte"
+    "environments": {
+      "dev": {
+        "account": "613563724766",
+        "region": "us-east-2"
+      },
+      "local": {
+        "account": "000000000000",
+        "region": "us-east-1"
+      }
     },
     "naming": {
       "prefix": "stitch",
       "suffix": "dev"
+    },
+    "tags": {
+      "Owner": "Jason DeCorte",
+      "Project": "stitch-worker"
     }
   },
   "watch": {
-    "include": [
-      "**"
-    ],
     "exclude": [
       "README.md",
       "cdk*.json",
@@ -29,6 +32,9 @@
       "**/__init__.py",
       "python/__pycache__",
       "tests"
+    ],
+    "include": [
+      "**"
     ]
   }
 }

@@ -13,6 +13,12 @@ class StitchWorkerSettings(BaseSettings):
     lambda_feature_extraction: bool = False
     lambda_document_extraction: bool = True
     lambda_split_file: bool = False
+    openai_api_key: str | None = None
+    pinecone_api_key: str | None = None
+    pinecone_index_name: str | None = None
+    create_hub_instance: bool = False
+    system_admin_api_key: str | None = None
+    hub_url: str | None = None
 
     @classmethod
     def settings_customise_sources(

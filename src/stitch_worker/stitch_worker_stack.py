@@ -12,6 +12,8 @@ from aws_cdk import (
     Tags,
     aws_sns,
     aws_secretsmanager,
+    aws_s3,
+    aws_ec2,
 )
 from constructs import Construct
 
@@ -26,9 +28,11 @@ class StitchWorkerStack(Stack):
         tags = self.node.try_get_context("tags")
         naming = self.node.try_get_context("naming")
         settings = self.node.try_get_context("settings")
+        self.env = self.node.try_get_context("env") or "dev"
         self.prefix = naming["prefix"]
-        self.suffix = naming["suffix"]
+        self.suffix = self.env
 
+        tags.update({"Environment": self.env})
         # Apply tags to all resources in the stack
         for key, value in tags.items():
             Tags.of(self).add(key, value)
@@ -47,9 +51,45 @@ class StitchWorkerStack(Stack):
             self, "StitchEventBridgeBus", event_bus_name=f"{self.prefix}-{self.suffix}-datastores-bus"
         )
 
+        default_environment = {
+            "DEBUG_MODE": "True",
+            "POWERTOOLS_SERVICE_NAME": "stitch_worker",
+            "POWERTOOLS_LOG_LEVEL": "INFO",
+            "POWERTOOLS_LOG_FORMAT": "JSON",
+            "EVENT_BUS_NAME": self.bus.event_bus_name,
+            "LOGGER_NAME": "stitch_worker",
+            "LOG_LEVEL": "DEBUG",
+            "HUB_URL": settings["hub_url"],
+            "SYSTEM_ADMIN_API_KEY": settings["system_admin_api_key"],
+        }
+
+        if self.env == "local":
+            openai_api_key = settings["openai_api_key"]
+            pinecone_api_key = settings["pinecone_api_key"]
+            pinecone_index_name = settings["pinecone_index_name"]
+            self.s3_bucket = aws_s3.Bucket(
+                self,
+                "StitchWorkerS3Bucket",
+                bucket_name=f"{self.prefix}-{self.suffix}-files",
+            )
+        else:
+            secret_manager = aws_secretsmanager.Secret.from_secret_name_v2(
+                self,
+                "WorkerSecret",
+                secret_name=f"ayd/{self.env}/worker",
+            )
+            openai_api_key = secret_manager.secret_value_from_json("OPENAI_API_KEY").to_string()
+            pinecone_api_key = secret_manager.secret_value_from_json("PINECONE_API_KEY").to_string()
+            pinecone_index_name = secret_manager.secret_value_from_json("PINECONE_INDEX_NAME").to_string()
+            self.s3_bucket = aws_s3.Bucket.from_bucket_name(
+                self,
+                "StitchWorkerS3Bucket",
+                bucket_name=f"ayd-{self.suffix}-files",
+            )
+
         if settings["lambda_document_extraction"]:
             document_extraction_topic, document_extraction_queue, document_extraction_role = (
-                self.create_document_extraction_notification_lambda()
+                self.create_document_extraction_notification_lambda(default_environment=default_environment)
             )
 
         # Define process names
@@ -61,7 +101,7 @@ class StitchWorkerStack(Stack):
                 "event_pattern": {
                     "source": ["aws.s3"],
                     "detail_type": [EventType.S3_OBJECT_CREATED],
-                    "detail": {"bucket": {"name": ["ayd-dev-files"]}},
+                    "detail": {"bucket": {"name": [self.s3_bucket.bucket_name]}},
                 },
                 "id_prefix": "DocumentExtract",
                 "additional_policies": [
@@ -77,7 +117,7 @@ class StitchWorkerStack(Stack):
                     ),
                 ],
                 "environment": {
-                    "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
+                    "TEXT_EXTRACTION_S3_BUCKET": self.s3_bucket.bucket_name,
                     "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
                     "TEXT_EXTRACTION_SNS_TOPIC_ARN": document_extraction_topic.topic_arn,
                     "TEXT_EXTRACTION_SNS_ROLE_ARN": document_extraction_role.role_arn,
@@ -120,13 +160,7 @@ class StitchWorkerStack(Stack):
                     ),
                 ],
                 "environment": {
-                    "OPENAI_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
-                        self,
-                        "WorkerSecret",
-                        secret_name="ayd/dev/worker",
-                    )
-                    .secret_value_from_json("OPENAI_API_KEY")
-                    .to_string(),
+                    "OPENAI_API_KEY": openai_api_key,
                 },
             },
             {
@@ -146,21 +180,9 @@ class StitchWorkerStack(Stack):
                     ),
                 ],
                 "environment": {
-                    "OPENAI_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
-                        self,
-                        "WorkerSecretOpenAI",
-                        secret_name="ayd/dev/worker",
-                    )
-                    .secret_value_from_json("OPENAI_API_KEY")
-                    .to_string(),
-                    "PINECONE_API_KEY": aws_secretsmanager.Secret.from_secret_name_v2(
-                        self,
-                        "WorkerSecretPinecone",
-                        secret_name="ayd/dev/worker",
-                    )
-                    .secret_value_from_json("PINECONE_API_KEY")
-                    .to_string(),
-                    "PINECONE_INDEX_NAME": "ayd-cosine-staging",
+                    "OPENAI_API_KEY": openai_api_key,
+                    "PINECONE_API_KEY": pinecone_api_key,
+                    "PINECONE_INDEX_NAME": pinecone_index_name,
                 },
             },
             {
@@ -213,7 +235,7 @@ class StitchWorkerStack(Stack):
                 "event_pattern": {
                     "source": ["aws.s3"],
                     "detail_type": [EventType.S3_OBJECT_CREATED],
-                    "detail": {"bucket": {"name": ["ayd-dev-files"]}},
+                    "detail": {"bucket": {"name": [self.s3_bucket.bucket_name]}},
                 },
                 "id_prefix": "SplitFile",
                 "additional_policies": [
@@ -227,15 +249,6 @@ class StitchWorkerStack(Stack):
             },
         ]
 
-        default_environment = {
-            "DEBUG_MODE": "True",
-            "POWERTOOLS_SERVICE_NAME": "stitch_worker",
-            "POWERTOOLS_LOG_LEVEL": "INFO",
-            "POWERTOOLS_LOG_FORMAT": "JSON",
-            "EVENT_BUS_NAME": self.bus.event_bus_name,
-            "LOGGER_NAME": "stitch_worker",
-            "LOG_LEVEL": "DEBUG",
-        }
         # Create SQS queues and Lambda functions for each process
         for process in processes:
             if not process["enabled"]:
@@ -251,20 +264,34 @@ class StitchWorkerStack(Stack):
             )
 
             # Create Lambda function
-            lambda_fn = aws_lambda.DockerImageFunction(
-                self,
-                f"{process['id_prefix']}Lambda",
-                function_name=f"{self.prefix}-{self.suffix}-{process['name']}",
-                code=aws_lambda.DockerImageCode.from_ecr(
-                    repository=self.repository,
-                    tag_or_digest=self.image_tag,
-                    cmd=[f"worker.handlers.{process['module']}.index.handler"],
-                ),
-                logging_format=aws_lambda.LoggingFormat.JSON,
-                timeout=Duration.seconds(300),
-                environment=default_environment | process.get("environment", {}),
-                memory_size=process.get("memory_size", 128),
-            )
+            if self.env == "local":
+                lambda_fn = aws_lambda.Function(
+                    self,
+                    f"{process['id_prefix']}Lambda",
+                    function_name=f"{self.prefix}-{self.suffix}-{process['name']}",
+                    runtime=aws_lambda.Runtime.PYTHON_3_13,
+                    handler=f"worker.handlers.{process['module']}.index.handler",
+                    code=aws_lambda.Code.from_asset("/Users/jason/Downloads/worker_deployment_package.zip"),
+                    timeout=Duration.seconds(300),
+                    environment=default_environment | process.get("environment", {}),
+                    memory_size=process.get("memory_size", 128),
+                    logging_format=aws_lambda.LoggingFormat.JSON,
+                )
+            else:
+                lambda_fn = aws_lambda.DockerImageFunction(
+                    self,
+                    f"{process['id_prefix']}Lambda",
+                    function_name=f"{self.prefix}-{self.suffix}-{process['name']}",
+                    code=aws_lambda.DockerImageCode.from_ecr(
+                        repository=self.repository,
+                        tag_or_digest=self.image_tag,
+                        cmd=[f"worker.handlers.{process['module']}.index.handler"],
+                    ),
+                    logging_format=aws_lambda.LoggingFormat.JSON,
+                    timeout=Duration.seconds(300),
+                    environment=default_environment | process.get("environment", {}),
+                    memory_size=process.get("memory_size", 128),
+                )
 
             # Add EventBridge permissions to Lambda
             lambda_fn.add_to_role_policy(
@@ -302,14 +329,19 @@ class StitchWorkerStack(Stack):
                 source=["aws.s3"],
                 detail_type=[EventType.S3_OBJECT_CREATED],
                 detail={
-                    "bucket": {"name": ["ayd-dev-files"]},
+                    "bucket": {"name": [self.s3_bucket.bucket_name]},
                     "object": {"key": [{"wildcard": "jdtest/*.pdf"}]},
                 },
             ),
             targets=[aws_events_targets.EventBus(self.bus)],
         )
 
-    def create_document_extraction_notification_lambda(self):
+        if settings["create_hub_instance"]:
+            self.create_hub_instance()
+
+    def create_document_extraction_notification_lambda(
+        self, default_environment: dict
+    ) -> tuple[aws_sns.Topic, aws_sqs.Queue, aws_iam.Role]:
         # Create SNS Topic
         topic = aws_sns.Topic(
             self, "TextExtractionTopic", topic_name=f"AmazonTextract-{self.prefix}-{self.suffix}-text-extraction-topic"
@@ -328,29 +360,40 @@ class StitchWorkerStack(Stack):
         topic.add_subscription(aws_sns_subscriptions.SqsSubscription(queue))
 
         # Add Lambda Function to SQS Queue
-        lambda_fn = aws_lambda.DockerImageFunction(
-            self,
-            "DocumentExtractionNotificationLambda",
-            function_name=f"{self.prefix}-{self.suffix}-document-extraction-notification",
-            code=aws_lambda.DockerImageCode.from_ecr(
-                repository=self.repository,
-                tag_or_digest=self.image_tag,
-                cmd=["worker.handlers.document_extraction_notification.index.handler"],
-            ),
-            logging_format=aws_lambda.LoggingFormat.JSON,
-            timeout=Duration.seconds(300),
-            environment={
-                "DEBUG_MODE": "True",
-                "POWERTOOLS_SERVICE_NAME": "stitch_worker",
-                "POWERTOOLS_LOG_LEVEL": "INFO",
-                "POWERTOOLS_LOG_FORMAT": "JSON",
-                "EVENT_BUS_NAME": self.bus.event_bus_name,
-                "LOGGER_NAME": "stitch_worker",
-                "LOG_LEVEL": "DEBUG",
-                "TEXT_EXTRACTION_S3_BUCKET": "ayd-dev-files",
-                "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
-            },
-        )
+        if self.env == "local":
+            lambda_fn = aws_lambda.Function(
+                self,
+                "DocumentExtractionNotificationLambda",
+                function_name=f"{self.prefix}-{self.suffix}-document-extraction-notification",
+                runtime=aws_lambda.Runtime.PYTHON_3_13,
+                handler="worker.handlers.document_extraction_notification.index.handler",
+                code=aws_lambda.Code.from_asset("/Users/jason/Downloads/worker_deployment_package.zip"),
+                logging_format=aws_lambda.LoggingFormat.JSON,
+                timeout=Duration.seconds(300),
+                environment=default_environment
+                | {
+                    "TEXT_EXTRACTION_S3_BUCKET": self.s3_bucket.bucket_name,
+                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
+                },
+            )
+        else:
+            lambda_fn = aws_lambda.DockerImageFunction(
+                self,
+                "DocumentExtractionNotificationLambda",
+                function_name=f"{self.prefix}-{self.suffix}-document-extraction-notification",
+                code=aws_lambda.DockerImageCode.from_ecr(
+                    repository=self.repository,
+                    tag_or_digest=self.image_tag,
+                    cmd=["worker.handlers.document_extraction_notification.index.handler"],
+                ),
+                logging_format=aws_lambda.LoggingFormat.JSON,
+                timeout=Duration.seconds(300),
+                environment=default_environment
+                | {
+                    "TEXT_EXTRACTION_S3_BUCKET": self.s3_bucket.bucket_name,
+                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
+                },
+            )
 
         lambda_fn.add_to_role_policy(
             aws_iam.PolicyStatement(
@@ -373,6 +416,56 @@ class StitchWorkerStack(Stack):
         )
 
         return topic, queue, role
+
+    def create_hub_instance(self) -> aws_ec2.Instance:
+        """Create EC2 instance for hub"""
+        user_data = aws_ec2.UserData.for_linux()
+        user_data.add_commands(
+            "sudo yum update -y",
+            # "sudo yum install -y docker",
+            "sudo amazon-linux-extras install dockersudo service docker start",
+            "sudo usermod -a -G docker ec2-user",
+            "sudo yum install git -y",
+            "sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose",
+            "sudo chmod +x /usr/local/bin/docker-compose",
+            "docker network create -d bridge local-test-net",
+            # "git clone https://github.com/askyourpolicy/ayp-hub.git",
+            # "cd ayp-hub",
+            # "git checkout feat/dockerize",
+            # "docker build -t hub .",
+        )
+        vpc = aws_ec2.Vpc.from_lookup(self, "AypDevVpc", vpc_id="vpc-006d3d536785de977")
+        security_group = aws_ec2.SecurityGroup(self, "StitchHubSecurityGroup", vpc=vpc, allow_all_outbound=True)
+        security_group.add_ingress_rule(
+            peer=aws_ec2.Peer.any_ipv4(), connection=aws_ec2.Port.tcp(port=5050), description="allow access to hub"
+        )
+        ec2_instance = aws_ec2.Instance(
+            self,
+            "StitchHubInstance",
+            instance_type=aws_ec2.InstanceType("t2.micro"),
+            instance_name=f"{self.prefix}-{self.suffix}-hub-instance",
+            machine_image=aws_ec2.MachineImage.latest_amazon_linux2(
+                user_data=user_data,
+            ),
+            vpc=vpc,
+            associate_public_ip_address=True,
+            require_imdsv2=True,
+            vpc_subnets=aws_ec2.SubnetSelection(subnet_type=aws_ec2.SubnetType.PUBLIC),
+            block_devices=[
+                aws_ec2.BlockDevice(
+                    device_name="/dev/xvda",
+                    volume=aws_ec2.BlockDeviceVolume.ebs(volume_size=10),
+                )
+            ],
+            # user_data=user_data.render(),
+            security_group=security_group,
+            role=aws_iam.Role.from_role_arn(
+                self,
+                "AypDevBastionInstanceRole",
+                role_arn="arn:aws:iam::613563724766:role/ayp-dev-bastion-instance-role",
+            ),
+        )
+        return ec2_instance
 
 
 class StitchOrchestrationStack(Stack):
