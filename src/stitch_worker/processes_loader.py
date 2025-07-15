@@ -1,8 +1,11 @@
-import yaml
 import os
 import copy
 from typing import Any
+
+import yaml
 from aws_cdk import aws_iam
+from pydantic.alias_generators import to_pascal_case
+
 from stitch_worker.enums import EventType
 
 
@@ -73,6 +76,12 @@ def load_processes_config(
         "DOCUMENT_EXTRACTION_COMPLETED": EventType.DOCUMENT_EXTRACTION_COMPLETED,
         "BLOCK_STANDARDIZATION_COMPLETED": EventType.BLOCK_STANDARDIZATION_COMPLETED,
         "BLOCK_SUMMARIZATION_COMPLETED": EventType.BLOCK_SUMMARIZATION_COMPLETED,
+        "BLOCK_REFINEMENT_COMPLETED": EventType.BLOCK_REFINEMENT_COMPLETED,
+        "BLOCK_INSERTION_COMPLETED": EventType.BLOCK_INSERTION_COMPLETED,
+        "DOCUMENT_SUMMARY_COMPLETED": EventType.DOCUMENT_SUMMARY_COMPLETED,
+        "SEED_QUESTIONS_COMPLETED": EventType.SEED_QUESTIONS_COMPLETED,
+        "FEATURE_EXTRACTION_COMPLETED": EventType.FEATURE_EXTRACTION_COMPLETED,
+        "SPLIT_FILE_COMPLETED": EventType.SPLIT_FILE_COMPLETED,
     }
 
     processed_processes = []
@@ -87,7 +96,9 @@ def load_processes_config(
         # Convert event type strings to actual EventType enum values
         if "event_pattern" in processed_process and "detail_type" in processed_process["event_pattern"]:
             detail_types = processed_process["event_pattern"]["detail_type"]
-            processed_process["event_pattern"]["detail_type"] = [event_type_mapping.get(dt, dt) for dt in detail_types]
+            processed_process["event_pattern"]["detail_type"] = [
+                event_type_mapping.get(dt, to_pascal_case(dt)) for dt in detail_types
+            ]
 
         # Convert policy definitions to IAM PolicyStatement objects
         if "additional_policies" in processed_process:
