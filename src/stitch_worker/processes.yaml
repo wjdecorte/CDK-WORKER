@@ -4,7 +4,7 @@ processes:
     module: "document_extract"
     event_pattern:
       source: ["aws.s3"]
-      detail_type: ["S3_OBJECT_CREATED"]
+      detail_type: ["Object Created"]
       detail:
         bucket:
           name: ["${s3_bucket_name}"]
@@ -27,7 +27,7 @@ processes:
     module: "block_standardization"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["DOCUMENT_EXTRACTION_COMPLETED"]
+      detail_type: ["DocumentExtractionCompleted"]
     id_prefix: "BlockProcessing"
     additional_policies:
       - effect: "ALLOW"
@@ -41,7 +41,7 @@ processes:
     module: "block_summarization"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail_type: ["BlockStandardizationCompleted"]
     id_prefix: "BlockSummarization"
     additional_policies:
       - effect: "ALLOW"
@@ -55,7 +55,7 @@ processes:
     module: "block_refinement"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_SUMMARIZATION_COMPLETED"]
+      detail_type: ["BlockSummarizationCompleted"]
     id_prefix: "BlockRefinement"
     additional_policies:
       - effect: "ALLOW"
@@ -71,7 +71,7 @@ processes:
     module: "block_insertion"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_REFINEMENT_COMPLETED"]
+      detail_type: ["BlockRefinementCompleted"]
     id_prefix: "BlockInsertion"
     additional_policies:
       - effect: "ALLOW"
@@ -89,7 +89,7 @@ processes:
     module: "document_summary"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail_type: ["BlockStandardizationCompleted"]
     id_prefix: "DocumentSummary"
     additional_policies: []
 
@@ -98,7 +98,7 @@ processes:
     module: "seed_questions"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail_type: ["BlockStandardizationCompleted"]
       detail:
         metadata:
           seed_questions_list: [{"exists": true}]
@@ -110,7 +110,7 @@ processes:
     module: "feature_extraction"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail_type: ["BlockStandardizationCompleted"]
       detail:
         metadata:
           feature_types: [{"exists": true}]
@@ -122,7 +122,7 @@ processes:
     module: "split_file"
     event_pattern:
       source: ["aws.s3"]
-      detail_type: ["S3_OBJECT_CREATED"]
+      detail_type: ["Object Created"]
       detail:
         bucket:
           name: ["${s3_bucket_name}"]

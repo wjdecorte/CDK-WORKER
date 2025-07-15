@@ -17,7 +17,6 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from stitch_worker.enums import EventType
 from stitch_worker.processes_loader import load_processes_config
 
 
@@ -199,7 +198,7 @@ class StitchWorkerStack(Stack):
             rule_name=f"{self.prefix}-{self.suffix}-document-upload",
             event_pattern=aws_events.EventPattern(
                 source=["aws.s3"],
-                detail_type=[EventType.S3_OBJECT_CREATED],
+                detail_type=["Object Created"],
                 detail={
                     "bucket": {"name": [self.s3_bucket.bucket_name]},
                     "object": {"key": [{"wildcard": "jdtest/*.pdf"}]},
