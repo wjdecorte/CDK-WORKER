@@ -18,6 +18,7 @@ from aws_cdk import (
 from constructs import Construct
 
 from stitch_worker.enums import EventType
+from stitch_worker.processes_loader import load_processes_config
 
 
 class StitchWorkerStack(Stack):
@@ -93,167 +94,25 @@ class StitchWorkerStack(Stack):
                 bucket_name=f"ayd-{self.suffix}-files",
             )
 
+        # Initialize document extraction resources if needed
+        document_extraction_topic = None
+        document_extraction_role = None
+
         if settings["lambda_document_extraction"]:
             document_extraction_topic, document_extraction_queue, document_extraction_role = (
                 self.create_document_extraction_notification_lambda(default_environment=default_environment)
             )
 
-        # Define process names
-        processes = [
-            {
-                "name": "document-extract",
-                "enabled": settings["lambda_document_extraction"],
-                "module": "document_extract",
-                "event_pattern": {
-                    "source": ["aws.s3"],
-                    "detail_type": [EventType.S3_OBJECT_CREATED],
-                    "detail": {"bucket": {"name": [self.s3_bucket.bucket_name]}},
-                },
-                "id_prefix": "DocumentExtract",
-                "additional_policies": [
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    ),
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["textract:StartDocumentAnalysis"],
-                        resources=["*"],
-                    ),
-                ],
-                "environment": {
-                    "TEXT_EXTRACTION_S3_BUCKET": self.s3_bucket.bucket_name,
-                    "TEXT_EXTRACTION_S3_KEY_PREFIX": "textract-output",
-                    "TEXT_EXTRACTION_SNS_TOPIC_ARN": document_extraction_topic.topic_arn,
-                    "TEXT_EXTRACTION_SNS_ROLE_ARN": document_extraction_role.role_arn,
-                },
-            },
-            {
-                "name": "block-standardization",
-                "enabled": settings["lambda_block_standardization"],
-                "module": "block_standardization",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.DOCUMENT_EXTRACTION_COMPLETED],
-                },
-                "id_prefix": "BlockProcessing",
-                "additional_policies": [
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    ),
-                ],
-                "environment": {
-                    "BLOCK_SKIP_KEY_VALUE_SET": "False",
-                },
-            },
-            {
-                "name": "block-summarization",
-                "enabled": settings["lambda_block_summarization"],
-                "module": "block_summarization",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.BLOCK_STANDARDIZATION_COMPLETED],
-                },
-                "id_prefix": "BlockSummarization",
-                "additional_policies": [
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    ),
-                ],
-                "environment": {
-                    "OPENAI_API_KEY": openai_api_key,
-                },
-            },
-            {
-                "name": "block-refinement",
-                "enabled": settings["lambda_block_refinement"],
-                "module": "block_refinement",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.BLOCK_SUMMARIZATION_COMPLETED],
-                },
-                "id_prefix": "BlockRefinement",
-                "additional_policies": [
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    ),
-                ],
-                "environment": {
-                    "OPENAI_API_KEY": openai_api_key,
-                    "PINECONE_API_KEY": pinecone_api_key,
-                    "PINECONE_INDEX_NAME": pinecone_index_name,
-                },
-            },
-            {
-                "name": "document-summary",
-                "enabled": settings["lambda_document_summary"],
-                "module": "document_summary",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.BLOCK_STANDARDIZATION_COMPLETED],
-                },
-                "id_prefix": "DocumentSummary",
-                "additional_policies": [],
-            },
-            {
-                "name": "seed-questions",
-                "enabled": settings["lambda_seed_questions"],
-                "module": "seed_questions",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.BLOCK_STANDARDIZATION_COMPLETED],
-                    "detail": {
-                        "metadata": {
-                            "seed_questions_list": [{"exists": True}],
-                        }
-                    },
-                },
-                "id_prefix": "SeedQuestions",
-                "additional_policies": [],
-            },
-            {
-                "name": "feature-extraction",
-                "enabled": settings["lambda_feature_extraction"],
-                "module": "feature_extraction",
-                "event_pattern": {
-                    "source": ["stitch.worker"],
-                    "detail_type": [EventType.BLOCK_STANDARDIZATION_COMPLETED],
-                    "detail": {
-                        "metadata": {
-                            "feature_types": [{"exists": True}],
-                        }
-                    },
-                },
-                "id_prefix": "FeatureExtraction",
-                "additional_policies": [],
-            },
-            {
-                "name": "split-file",
-                "enabled": settings["lambda_split_file"],
-                "module": "split_file",
-                "event_pattern": {
-                    "source": ["aws.s3"],
-                    "detail_type": [EventType.S3_OBJECT_CREATED],
-                    "detail": {"bucket": {"name": [self.s3_bucket.bucket_name]}},
-                },
-                "id_prefix": "SplitFile",
-                "additional_policies": [
-                    aws_iam.PolicyStatement(
-                        effect=aws_iam.Effect.ALLOW,
-                        actions=["s3:Get*", "s3:List*", "s3:Put*"],
-                        resources=["*"],
-                    ),
-                ],
-                "memory_size": 2048,
-            },
-        ]
+        # Load processes configuration from YAML
+        processes = load_processes_config(
+            settings=settings,
+            s3_bucket_name=self.s3_bucket.bucket_name,
+            document_extraction_topic_arn=document_extraction_topic.topic_arn if document_extraction_topic else None,
+            document_extraction_role_arn=document_extraction_role.role_arn if document_extraction_role else None,
+            openai_api_key=openai_api_key,
+            pinecone_api_key=pinecone_api_key,
+            pinecone_index_name=pinecone_index_name,
+        )
 
         # Create SQS queues and Lambda functions for each process
         for process in processes:

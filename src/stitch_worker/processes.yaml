@@ -1,0 +1,116 @@
+processes:
+  - name: "document-extract"
+    enabled: "${lambda_document_extraction}"
+    module: "document_extract"
+    event_pattern:
+      source: ["aws.s3"]
+      detail_type: ["S3_OBJECT_CREATED"]
+      detail:
+        bucket:
+          name: ["${s3_bucket_name}"]
+    id_prefix: "DocumentExtract"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+      - effect: "ALLOW"
+        actions: ["textract:StartDocumentAnalysis"]
+        resources: ["*"]
+    environment:
+      TEXT_EXTRACTION_S3_BUCKET: "${s3_bucket_name}"
+      TEXT_EXTRACTION_S3_KEY_PREFIX: "textract-output"
+      TEXT_EXTRACTION_SNS_TOPIC_ARN: "${document_extraction_topic_arn}"
+      TEXT_EXTRACTION_SNS_ROLE_ARN: "${document_extraction_role_arn}"
+
+  - name: "block-standardization"
+    enabled: "${lambda_block_standardization}"
+    module: "block_standardization"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["DOCUMENT_EXTRACTION_COMPLETED"]
+    id_prefix: "BlockProcessing"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+    environment:
+      BLOCK_SKIP_KEY_VALUE_SET: "False"
+
+  - name: "block-summarization"
+    enabled: "${lambda_block_summarization}"
+    module: "block_summarization"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+    id_prefix: "BlockSummarization"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+    environment:
+      OPENAI_API_KEY: "${openai_api_key}"
+
+  - name: "block-refinement"
+    enabled: "${lambda_block_refinement}"
+    module: "block_refinement"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_SUMMARIZATION_COMPLETED"]
+    id_prefix: "BlockRefinement"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+    environment:
+      OPENAI_API_KEY: "${openai_api_key}"
+      PINECONE_API_KEY: "${pinecone_api_key}"
+      PINECONE_INDEX_NAME: "${pinecone_index_name}"
+
+  - name: "document-summary"
+    enabled: "${lambda_document_summary}"
+    module: "document_summary"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+    id_prefix: "DocumentSummary"
+    additional_policies: []
+
+  - name: "seed-questions"
+    enabled: "${lambda_seed_questions}"
+    module: "seed_questions"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail:
+        metadata:
+          seed_questions_list: [{"exists": true}]
+    id_prefix: "SeedQuestions"
+    additional_policies: []
+
+  - name: "feature-extraction"
+    enabled: "${lambda_feature_extraction}"
+    module: "feature_extraction"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_STANDARDIZATION_COMPLETED"]
+      detail:
+        metadata:
+          feature_types: [{"exists": true}]
+    id_prefix: "FeatureExtraction"
+    additional_policies: []
+
+  - name: "split-file"
+    enabled: "${lambda_split_file}"
+    module: "split_file"
+    event_pattern:
+      source: ["aws.s3"]
+      detail_type: ["S3_OBJECT_CREATED"]
+      detail:
+        bucket:
+          name: ["${s3_bucket_name}"]
+    id_prefix: "SplitFile"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+    memory_size: 2048
