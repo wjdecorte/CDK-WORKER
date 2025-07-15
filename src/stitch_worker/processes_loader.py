@@ -14,6 +14,8 @@ def load_processes_config(
     openai_api_key: str = None,
     pinecone_api_key: str = None,
     pinecone_index_name: str = None,
+    ec2_host: str = None,
+    database_password: str = None,
 ) -> list[dict[str, Any]]:
     """
     Load processes configuration from YAML file and substitute template variables.
@@ -26,6 +28,8 @@ def load_processes_config(
         openai_api_key: OpenAI API key
         pinecone_api_key: Pinecone API key
         pinecone_index_name: Pinecone index name
+        ec2_host: EC2 host
+        database_password: Database password
 
     Returns:
         List of process configurations with substituted values
@@ -45,6 +49,7 @@ def load_processes_config(
         "${lambda_block_standardization}": settings.get("lambda_block_standardization", False),
         "${lambda_block_summarization}": settings.get("lambda_block_summarization", False),
         "${lambda_block_refinement}": settings.get("lambda_block_refinement", False),
+        "${lambda_block_insertion}": settings.get("lambda_block_insertion", False),
         "${lambda_document_summary}": settings.get("lambda_document_summary", False),
         "${lambda_seed_questions}": settings.get("lambda_seed_questions", False),
         "${lambda_feature_extraction}": settings.get("lambda_feature_extraction", False),
@@ -55,6 +60,11 @@ def load_processes_config(
         "${openai_api_key}": openai_api_key or "",
         "${pinecone_api_key}": pinecone_api_key or "",
         "${pinecone_index_name}": pinecone_index_name or "",
+        "${database_host}": settings.get("database_host") or ec2_host,
+        "${database_port}": settings.get("database_port"),
+        "${database_name}": settings.get("database_name"),
+        "${database_user}": settings.get("database_user"),
+        "${database_password}": database_password or "",
     }
 
     # Event type mapping

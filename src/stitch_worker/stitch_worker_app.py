@@ -1,5 +1,6 @@
 import aws_cdk as cdk
-from stitch_worker.stitch_worker_stack import StitchWorkerStack, StitchOrchestrationStack
+from stitch_worker.stitch_orchestration_stack import StitchOrchestrationStack
+from stitch_worker.stitch_worker_stack import StitchWorkerStack
 from stitch_worker import StitchWorkerSettings
 
 app = cdk.App(

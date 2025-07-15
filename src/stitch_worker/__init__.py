@@ -8,6 +8,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_block_standardization: bool = True
     lambda_block_summarization: bool = True
     lambda_block_refinement: bool = True
+    lambda_block_insertion: bool = True
     lambda_document_summary: bool = False
     lambda_seed_questions: bool = False
     lambda_feature_extraction: bool = False
@@ -19,6 +20,11 @@ class StitchWorkerSettings(BaseSettings):
     create_hub_instance: bool = False
     system_admin_api_key: str | None = None
     hub_url: str | None = None
+    database_host: str | None = None
+    database_port: str | None = None
+    database_name: str | None = None
+    database_user: str | None = None
+    database_password: str | None = None
 
     @classmethod
     def settings_customise_sources(

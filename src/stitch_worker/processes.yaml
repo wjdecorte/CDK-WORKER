@@ -66,6 +66,24 @@ processes:
       PINECONE_API_KEY: "${pinecone_api_key}"
       PINECONE_INDEX_NAME: "${pinecone_index_name}"
 
+  - name: "block-insertion"
+    enabled: "${lambda_block_insertion}"
+    module: "block_insertion"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BLOCK_REFINEMENT_COMPLETED"]
+    id_prefix: "BlockInsertion"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*"]
+        resources: ["*"]
+    environment:
+      DATABASE_HOST: "${database_host}"
+      DATABASE_PORT: "${database_port}"
+      DATABASE_NAME: "${database_name}"
+      DATABASE_USER: "${database_user}"
+      DATABASE_PASSWORD: "${database_password}"
+
   - name: "document-summary"
     enabled: "${lambda_document_summary}"
     module: "document_summary"

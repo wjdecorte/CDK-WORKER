@@ -54,9 +54,10 @@ class StitchWorkerStack(Stack):
 
         if settings["create_hub_instance"]:
             ec2_instance = self.create_hub_instance()
-            hub_url_host = f"http://{ec2_instance.instance_public_ip}:5050"
+            ec2_host = f"http://{ec2_instance.instance_public_ip}:5050"
+            self.create_ec2_state_change_handler(ec2_instance)
         else:
-            hub_url_host = "http://localhost:5050"
+            ec2_host = "http://localhost:5050"
 
         default_environment = {
             "DEBUG_MODE": "True",
@@ -66,7 +67,7 @@ class StitchWorkerStack(Stack):
             "EVENT_BUS_NAME": self.bus.event_bus_name,
             "LOGGER_NAME": "stitch_worker",
             "LOG_LEVEL": "DEBUG",
-            "HUB_URL": settings["hub_url"] or f"{hub_url_host}/hub/api/v1",
+            "HUB_URL": settings["hub_url"] or f"{ec2_host}/hub/api/v1",
             "SYSTEM_ADMIN_API_KEY": settings["system_admin_api_key"],
         }
 
@@ -74,6 +75,7 @@ class StitchWorkerStack(Stack):
             openai_api_key = settings["openai_api_key"]
             pinecone_api_key = settings["pinecone_api_key"]
             pinecone_index_name = settings["pinecone_index_name"]
+            database_password = settings["database_password"]
             self.s3_bucket = aws_s3.Bucket(
                 self,
                 "StitchWorkerS3Bucket",
@@ -88,6 +90,9 @@ class StitchWorkerStack(Stack):
             openai_api_key = secret_manager.secret_value_from_json("OPENAI_API_KEY").to_string()
             pinecone_api_key = secret_manager.secret_value_from_json("PINECONE_API_KEY").to_string()
             pinecone_index_name = secret_manager.secret_value_from_json("PINECONE_INDEX_NAME").to_string()
+            database_password = (
+                settings["database_password"] or secret_manager.secret_value_from_json("DATABASE_PASSWORD").to_string()
+            )
             self.s3_bucket = aws_s3.Bucket.from_bucket_name(
                 self,
                 "StitchWorkerS3Bucket",
@@ -112,6 +117,8 @@ class StitchWorkerStack(Stack):
             openai_api_key=openai_api_key,
             pinecone_api_key=pinecone_api_key,
             pinecone_index_name=pinecone_index_name,
+            ec2_host=ec2_host,
+            database_password=database_password,
         )
 
         # Create SQS queues and Lambda functions for each process
@@ -283,32 +290,56 @@ class StitchWorkerStack(Stack):
         """Create EC2 instance for hub"""
         user_data = aws_ec2.UserData.for_linux()
         user_data.add_commands(
+            "set -e",
+            "echo 'Starting EC2 instance setup...'",
+            "",
+            "# Update system packages",
+            "echo 'Updating system packages...'",
             "sudo yum update -y",
-            # "sudo yum install -y docker",
-            "sudo amazon-linux-extras install dockersudo service docker start",
+            "",
+            "# Install Docker",
+            "echo 'Installing Docker...'",
+            "sudo yum install docker -y",
+            "sudo systemctl start docker",
+            "sudo systemctl enable docker",
             "sudo usermod -a -G docker ec2-user",
+            "",
+            "# Install Git",
+            "echo 'Installing Git...'",
             "sudo yum install git -y",
+            "",
+            "# Install Docker Compose",
+            "echo 'Installing Docker Compose...'",
             "sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose",
             "sudo chmod +x /usr/local/bin/docker-compose",
-            "docker network create -d bridge local-test-net",
-            # "git clone https://github.com/askyourpolicy/ayp-hub.git",
-            # "cd ayp-hub",
-            # "git checkout feat/dockerize",
-            # "docker build -t hub .",
+            "",
+            "# Create Docker network",
+            "echo 'Creating Docker network...'",
+            "docker network create -d bridge local-test-net || true",
+            "",
+            "# Keep the commented commands below for reference",
+            "# echo 'Cloning repository...'",
+            "# git clone https://github.com/askyourpolicy/ayp-hub.git",
+            "# cd ayp-hub",
+            "# git checkout feat/dockerize",
+            "# docker build -t hub .",
+            "",
+            "echo 'EC2 instance setup completed successfully!'",
         )
+
         vpc = aws_ec2.Vpc.from_lookup(self, "AypDevVpc", vpc_id="vpc-006d3d536785de977")
         security_group = aws_ec2.SecurityGroup(self, "StitchHubSecurityGroup", vpc=vpc, allow_all_outbound=True)
         security_group.add_ingress_rule(
             peer=aws_ec2.Peer.any_ipv4(), connection=aws_ec2.Port.tcp(port=5050), description="allow access to hub"
         )
+
         ec2_instance = aws_ec2.Instance(
             self,
             "StitchHubInstance",
             instance_type=aws_ec2.InstanceType("t2.micro"),
             instance_name=f"{self.prefix}-{self.suffix}-hub-instance",
-            machine_image=aws_ec2.MachineImage.latest_amazon_linux2(
-                user_data=user_data,
-            ),
+            machine_image=aws_ec2.MachineImage.latest_amazon_linux2(),
+            user_data=user_data,
             vpc=vpc,
             associate_public_ip_address=True,
             require_imdsv2=True,
@@ -319,7 +350,6 @@ class StitchWorkerStack(Stack):
                     volume=aws_ec2.BlockDeviceVolume.ebs(volume_size=10),
                 )
             ],
-            # user_data=user_data.render(),
             security_group=security_group,
             role=aws_iam.Role.from_role_arn(
                 self,
@@ -327,35 +357,59 @@ class StitchWorkerStack(Stack):
                 role_arn="arn:aws:iam::613563724766:role/ayp-dev-bastion-instance-role",
             ),
         )
+
         return ec2_instance
 
-
-class StitchOrchestrationStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
-        super().__init__(scope, construct_id, **kwargs)
-
-        # Get context values
-        naming = self.node.try_get_context("naming")
-        prefix = naming["prefix"]
-        suffix = naming["suffix"]
-
-        # Create SQS queue
-        queue = aws_sqs.Queue(
+    def create_ec2_state_change_handler(self, ec2_instance: aws_ec2.Instance):
+        """Create EventBridge rule and Lambda to update environment variables when EC2 IP changes"""
+        # Create Lambda function to handle EC2 state changes
+        state_change_handler = aws_lambda.Function(
             self,
-            "StitchOrchestrationQueue",
-            queue_name=f"{prefix}-{suffix}-start-orchestration",
+            "EC2StateChangeHandler",
+            function_name=f"{self.prefix}-{self.suffix}-ec2-state-change-handler",
+            runtime=aws_lambda.Runtime.PYTHON_3_13,
+            handler="index.handler",
+            code=aws_lambda.Code.from_asset(
+                path="src/stitch_worker/handlers/ec2_state_changer",
+                # bundling=aws_lambda.BundlingOptions(
+                #     image=aws_lambda.Runtime.PYTHON_3_13.bundling_image,
+                #     command=["bash", "-c", "pip install -r requirements.txt && cp -r * /asset-output/"]
+                # )
+            ),
+            logging_format=aws_lambda.LoggingFormat.JSON,
+            timeout=Duration.seconds(300),
+            environment={
+                "POWERTOOLS_SERVICE_NAME": "ec2_state_change_handler",
+                "POWERTOOLS_LOG_LEVEL": "INFO",
+                "PREFIX": self.prefix,
+                "SUFFIX": self.suffix,
+                "EC2_INSTANCE_ID": ec2_instance.instance_id,
+            },
         )
 
-        # Create EventBridge Bus
-        bus = aws_events.EventBus(self, "StitchOrchestrationBus", event_bus_name=f"{prefix}-{suffix}-orchestrations")
+        # Grant permissions to the state change handler
+        state_change_handler.add_to_role_policy(
+            aws_iam.PolicyStatement(
+                effect=aws_iam.Effect.ALLOW,
+                actions=[
+                    "ec2:DescribeInstances",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:ListFunctions",
+                ],
+                resources=["*"],
+            )
+        )
 
-        # Create EventBridge rule for S3 Object Created on default event bus
+        # Create EventBridge rule to detect EC2 instance state changes
         aws_events.Rule(
             self,
-            "StitchOrchestrationRule",
-            event_bus=bus,
-            enabled=True,
-            rule_name=f"{prefix}-{suffix}-start-orchestration",
-            event_pattern=aws_events.EventPattern(source=["stitch.orchestration"], detail_type=["StartOrchestration"]),
-            targets=[aws_events_targets.SqsQueue(queue)],
+            "EC2StateChangeRule",
+            rule_name=f"{self.prefix}-{self.suffix}-ec2-state-change-rule",
+            event_pattern=aws_events.EventPattern(
+                source=["aws.ec2"],
+                detail_type=["EC2 Instance State-change Notification"],
+                detail={"state": ["running"], "instance-id": [ec2_instance.instance_id]},
+            ),
+            targets=[aws_events_targets.LambdaFunction(state_change_handler)],
         )

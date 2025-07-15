@@ -8,6 +8,7 @@ authors = [
 dependencies = [
     "aws-cdk-lib==2.*",
     "aws-lambda-powertools[parser]==3.*",
+    "boto3>=1.39.4",
     "constructs==10.*",
     "pydantic-settings==2.*",
     "PyYAML==6.*",
