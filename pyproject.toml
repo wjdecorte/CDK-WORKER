@@ -1,6 +1,6 @@
 [project]
 name = "stitch-worker"
-version = "0.1.1"
+version = "0.1.3"
 description = "A CDK app with 5 Lambda functions and 5 SQS queues"
 authors = [
     {name = "Jason DeCorte", email = "jason@stitchstudio.ai"}
