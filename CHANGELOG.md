@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## [0.1.2] - 2025-07-15
+
 ## [0.1.3] - 2025-07-15
 - 2025-07-15 feat: add database connection details; add ec2 state changer handler and lambda; add boto3 to dependencies
 - 2025-07-14 feat: move process definition to a separate yaml file
