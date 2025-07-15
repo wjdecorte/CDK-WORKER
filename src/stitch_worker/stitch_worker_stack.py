@@ -51,6 +51,12 @@ class StitchWorkerStack(Stack):
             self, "StitchEventBridgeBus", event_bus_name=f"{self.prefix}-{self.suffix}-datastores-bus"
         )
 
+        if settings["create_hub_instance"]:
+            ec2_instance = self.create_hub_instance()
+            hub_url_host = f"http://{ec2_instance.instance_public_ip}:5050"
+        else:
+            hub_url_host = "http://localhost:5050"
+
         default_environment = {
             "DEBUG_MODE": "True",
             "POWERTOOLS_SERVICE_NAME": "stitch_worker",
@@ -59,7 +65,7 @@ class StitchWorkerStack(Stack):
             "EVENT_BUS_NAME": self.bus.event_bus_name,
             "LOGGER_NAME": "stitch_worker",
             "LOG_LEVEL": "DEBUG",
-            "HUB_URL": settings["hub_url"],
+            "HUB_URL": settings["hub_url"] or f"{hub_url_host}/hub/api/v1",
             "SYSTEM_ADMIN_API_KEY": settings["system_admin_api_key"],
         }
 
@@ -335,9 +341,6 @@ class StitchWorkerStack(Stack):
             ),
             targets=[aws_events_targets.EventBus(self.bus)],
         )
-
-        if settings["create_hub_instance"]:
-            self.create_hub_instance()
 
     def create_document_extraction_notification_lambda(
         self, default_environment: dict
