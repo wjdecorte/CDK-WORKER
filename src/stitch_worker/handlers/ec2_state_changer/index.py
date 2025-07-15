@@ -26,10 +26,10 @@ def handler(event, context):
                     return {"statusCode": 400, "body": "Instance not found"}
 
                 instance = response["Reservations"][0]["Instances"][0]
-                public_ip = instance.get("PublicIpAddress", "localhost")
-                hub_url = f"http://{public_ip}:5050/hub/api/v1"
+                public_dns_name = instance.get("PublicDnsName", "localhost")
+                hub_url = f"http://{public_dns_name}:5050/hub/api/v1"
 
-                print(f"Instance {instance_id} public IP: {public_ip}")
+                print(f"Instance {instance_id} public DNS name: {public_dns_name}")
                 print(f"New hub URL: {hub_url}")
 
                 # Update Lambda functions' environment variables
@@ -54,33 +54,30 @@ def handler(event, context):
                                 environment = config_response.get("Environment", {})
                                 variables = environment.get("Variables", {})
 
+                                # Track which variables were updated
+                                updated_vars = []
+
                                 # Update HUB_URL if it exists
                                 if "HUB_URL" in variables:
                                     old_url = variables["HUB_URL"]
                                     variables["HUB_URL"] = hub_url
-
-                                    # Update the function
-                                    lambda_client.update_function_configuration(
-                                        FunctionName=function["FunctionName"], Environment={"Variables": variables}
-                                    )
-                                    updated_functions.append(f"{function['FunctionName']}/HUB_URL")
-                                    print(f"Updated {function['FunctionName']} HUB_URL: {old_url} -> {hub_url}")
-                                else:
-                                    print(f"Skipped {function['FunctionName']} - no HUB_URL found")
+                                    updated_vars.append(f"HUB_URL: {old_url} -> {hub_url}")
 
                                 # Update DATABASE_HOST if it exists
                                 if "DATABASE_HOST" in variables:
                                     old_host = variables["DATABASE_HOST"]
-                                    variables["DATABASE_HOST"] = public_ip
+                                    variables["DATABASE_HOST"] = public_dns_name
+                                    updated_vars.append(f"DATABASE_HOST: {old_host} -> {public_dns_name}")
+
+                                # Update the function if any variables were changed
+                                if updated_vars:
                                     lambda_client.update_function_configuration(
                                         FunctionName=function["FunctionName"], Environment={"Variables": variables}
                                     )
-                                    updated_functions.append(f"{function['FunctionName']}/DATABASE_HOST")
-                                    print(
-                                        f"Updated {function['FunctionName']} DATABASE_HOST: {old_host} -> {public_ip}"
-                                    )
+                                    updated_functions.append(function["FunctionName"])
+                                    print(f"Updated {function['FunctionName']}: {', '.join(updated_vars)}")
                                 else:
-                                    print(f"Skipped {function['FunctionName']} - no DATABASE_HOST found")
+                                    print(f"Skipped {function['FunctionName']} - no HUB_URL or DATABASE_HOST found")
 
                             except Exception as e:
                                 print(f"Error updating {function['FunctionName']}: {str(e)}")
@@ -93,7 +90,7 @@ def handler(event, context):
                             "message": "Success",
                             "updated_functions": updated_functions,
                             "hub_url": hub_url,
-                            "public_ip": public_ip,
+                            "public_dns_name": public_dns_name,
                         }
                     ),
                 }
