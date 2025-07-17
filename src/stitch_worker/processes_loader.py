@@ -44,16 +44,14 @@ def load_processes_config(
     processes = config["processes"]
 
     # Template variable mapping
-    template_vars: dict[str, Any] = {
-        "${lambda_document_extraction}": settings.get("lambda_document_extraction", False),
-        "${lambda_block_standardization}": settings.get("lambda_block_standardization", False),
-        "${lambda_block_summarization}": settings.get("lambda_block_summarization", False),
-        "${lambda_block_refinement}": settings.get("lambda_block_refinement", False),
-        "${lambda_block_insertion}": settings.get("lambda_block_insertion", False),
-        "${lambda_document_summary}": settings.get("lambda_document_summary", False),
-        "${lambda_seed_questions}": settings.get("lambda_seed_questions", False),
-        "${lambda_feature_extraction}": settings.get("lambda_feature_extraction", False),
-        "${lambda_split_file}": settings.get("lambda_split_file", False),
+    template_vars: dict[str, Any] = {}
+
+    # Add all settings values dynamically with ${key} format
+    for key, value in settings.items():
+        template_vars[f"${{{key}}}"] = value
+
+    # Add explicit mappings for backward compatibility and special cases
+    explicit_mappings = {
         "${s3_bucket_name}": s3_bucket_name,
         "${document_extraction_topic_arn}": document_extraction_topic_arn or "",
         "${document_extraction_role_arn}": document_extraction_role_arn or "",
@@ -66,6 +64,9 @@ def load_processes_config(
         "${database_user}": settings.get("database_user"),
         "${database_password}": database_password or "",
     }
+
+    # Update template_vars with explicit mappings (these will override dynamic ones if there are conflicts)
+    template_vars.update(explicit_mappings)
 
     processed_processes = []
 

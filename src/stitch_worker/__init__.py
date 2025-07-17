@@ -14,7 +14,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_seed_questions: bool = False
     lambda_feature_extraction: bool = False
     lambda_document_extraction: bool = True
-    lambda_split_file: bool = False
+    lambda_split_file: bool = True
     openai_api_key: str | None = None
     pinecone_api_key: str | None = None
     pinecone_index_name: str | None = None
@@ -26,7 +26,7 @@ class StitchWorkerSettings(BaseSettings):
     database_name: str | None = None
     database_user: str | None = None
     database_password: str | None = None
-    embedding_batch_size: int = 100
+    embedding_batch_size: str = "100"
 
     @classmethod
     def settings_customise_sources(
