@@ -49,6 +49,7 @@ processes:
         resources: ["*"]
     environment:
       OPENAI_API_KEY: "${openai_api_key}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
 
   - name: "block-refinement"
     enabled: "${lambda_block_refinement}"
@@ -65,6 +66,8 @@ processes:
       OPENAI_API_KEY: "${openai_api_key}"
       PINECONE_API_KEY: "${pinecone_api_key}"
       PINECONE_INDEX_NAME: "${pinecone_index_name}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
+      OPENAI_EMBEDDING_MODEL: "${openai_embedding_model}"
 
   - name: "block-insertion"
     enabled: "${lambda_block_insertion}"
@@ -97,16 +100,26 @@ processes:
         resources: ["*"]
     environment:
       EMBEDDING_BATCH_SIZE: "${embedding_batch_size}"
+      PINECONE_API_KEY: "${pinecone_api_key}"
       PINECONE_INDEX_NAME: "${pinecone_index_name}"
+      OPENAI_API_KEY: "${openai_api_key}"
+      OPENAI_EMBEDDING_MODEL: "${openai_embedding_model}"
 
-  - name: "document-summary"
-    enabled: "${lambda_document_summary}"
-    module: "document_summary"
+  - name: "document-summarization"
+    enabled: "${lambda_document_summarization}"
+    module: "document_summarization"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BlockStandardizationCompleted"]
-    id_prefix: "DocumentSummary"
-    additional_policies: []
+      detail_type: ["BlockRefinementCompleted"]
+    id_prefix: "DocumentSummarization"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*"]
+        resources: ["*"]
+    environment:
+      OPENAI_API_KEY: "${openai_api_key}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
+      DOCUMENT_SUMMARY_MAX_TOKENS: "${document_summary_max_tokens}"
 
   - name: "seed-questions"
     enabled: "${lambda_seed_questions}"

@@ -10,7 +10,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_block_refinement: bool = True
     lambda_block_insertion: bool = True
     lambda_block_vectorization: bool = True
-    lambda_document_summary: bool = False
+    lambda_document_summarization: bool = True
     lambda_seed_questions: bool = False
     lambda_feature_extraction: bool = False
     lambda_document_extraction: bool = True
@@ -27,6 +27,9 @@ class StitchWorkerSettings(BaseSettings):
     database_user: str | None = None
     database_password: str | None = None
     embedding_batch_size: str = "100"
+    document_summary_max_tokens: str = "1000"
+    openai_chat_completion_model: str = "gpt-4o"
+    openai_embedding_model: str = "text-embedding-3-small"
 
     @classmethod
     def settings_customise_sources(
