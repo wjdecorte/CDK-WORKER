@@ -159,7 +159,7 @@ class StitchWorkerStack(Stack):
                         cmd=[f"worker.handlers.{process['module']}.index.handler"],
                     ),
                     logging_format=aws_lambda.LoggingFormat.JSON,
-                    timeout=Duration.seconds(300),
+                    timeout=Duration.seconds(amount=process.get("timeout", 300)),
                     environment=default_environment | process.get("environment", {}),
                     memory_size=process.get("memory_size", 128),
                 )
