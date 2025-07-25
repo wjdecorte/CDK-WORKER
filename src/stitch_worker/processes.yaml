@@ -123,17 +123,25 @@ processes:
       OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
       DOCUMENT_SUMMARY_MAX_TOKENS: "${document_summary_max_tokens}"
 
-  - name: "seed-questions"
-    enabled: "${lambda_seed_questions}"
-    module: "seed_questions"
+  - name: "seed-question-extraction"
+    enabled: "${lambda_seed_question_extraction}"
+    module: "seed_question_extraction"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BlockStandardizationCompleted"]
+      detail_type: ["BlockVectorizationCompleted"]
       detail:
         metadata:
-          seed_questions_list: [{"exists": true}]
-    id_prefix: "SeedQuestions"
+          seed_questions: [{"exists": true}]
+    id_prefix: "SeedQuestionExtraction"
     additional_policies: []
+    environment:
+      OPENAI_API_KEY: "${openai_api_key}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
+      OPENAI_EMBEDDING_MODEL: "${openai_embedding_model}"
+      PINECONE_API_KEY: "${pinecone_api_key}"
+      PINECONE_INDEX_NAME: "${pinecone_index_name}"
+      DOCUMENT_CONTEXT_SEPARATOR: "${document_context_separator}"
+      CHAT_COMPLETION_TEMPERATURE: "${chat_completion_temperature}"
 
   - name: "feature-extraction"
     enabled: "${lambda_feature_extraction}"
