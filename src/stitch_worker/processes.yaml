@@ -33,6 +33,7 @@ processes:
       - effect: "ALLOW"
         actions: ["s3:Get*", "s3:List*", "s3:Put*"]
         resources: ["*"]
+    memory_size: 256
     environment:
       BLOCK_SKIP_KEY_VALUE_SET: "False"
 
@@ -87,6 +88,19 @@ processes:
       DATABASE_USER: "${database_user}"
       DATABASE_PASSWORD: "${database_password}"
 
+  - name: "block-cropping"
+    enabled: "${lambda_block_cropping}"
+    module: "block_cropping"
+    event_pattern:
+      source: ["stitch.worker"]
+      detail_type: ["BlockInsertionCompleted"]
+    id_prefix: "BlockCropping"
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*", "s3:Put*"]
+        resources: ["*"]
+    memory_size: 512
+
   - name: "block-vectorization"
     enabled: "${lambda_block_vectorization}"
     module: "block_vectorization"
@@ -116,7 +130,6 @@ processes:
       - effect: "ALLOW"
         actions: ["s3:Get*", "s3:List*"]
         resources: ["*"]
-    timeout: 600
     memory_size: 512
     environment:
       OPENAI_API_KEY: "${openai_api_key}"

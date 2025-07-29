@@ -10,6 +10,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_block_refinement: bool = True
     lambda_block_insertion: bool = True
     lambda_block_vectorization: bool = True
+    lambda_block_cropping: bool = True
     lambda_document_summarization: bool = True
     lambda_seed_question_extraction: bool = True
     lambda_feature_extraction: bool = False
