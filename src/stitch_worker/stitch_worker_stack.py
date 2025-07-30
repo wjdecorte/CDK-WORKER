@@ -14,6 +14,7 @@ from aws_cdk import (
     aws_secretsmanager,
     aws_s3,
     aws_ec2,
+    aws_logs,
 )
 from constructs import Construct
 
@@ -51,6 +52,25 @@ class StitchWorkerStack(Stack):
             self, "StitchEventBridgeBus", event_bus_name=f"{self.prefix}-{self.suffix}-datastores-bus"
         )
 
+        # import existing log group
+        log_group = aws_logs.LogGroup.from_log_group_name(
+            self,
+            "StitchWorkerLogGroup",
+            log_group_name="/aws/events/stitch-worker",
+        )
+
+        # Create rule to log all events
+        aws_events.Rule(
+            self,
+            "StitchWorkerAllEventRule",
+            event_bus=self.bus,
+            rule_name=f"{self.prefix}-{self.suffix}-all-worker-events",
+            event_pattern=aws_events.EventPattern(
+                source=["stitch.worker"],
+            ),
+            targets=[aws_events_targets.CloudWatchLogGroup(log_group=log_group)],
+        )
+
         if settings["create_hub_instance"]:
             ec2_instance = self.create_hub_instance()
             ec2_host = ec2_instance.instance_public_dns_name
@@ -84,7 +104,7 @@ class StitchWorkerStack(Stack):
             secret_manager = aws_secretsmanager.Secret.from_secret_name_v2(
                 self,
                 "WorkerSecret",
-                secret_name=f"ayd/{self.env}/worker",
+                secret_name=f"ayp/{self.env}/worker",
             )
             openai_api_key = secret_manager.secret_value_from_json("OPENAI_API_KEY").to_string()
             pinecone_api_key = secret_manager.secret_value_from_json("PINECONE_API_KEY").to_string()
@@ -130,7 +150,7 @@ class StitchWorkerStack(Stack):
                 self,
                 f"{process['id_prefix']}Queue",
                 queue_name=f"{self.prefix}-{self.suffix}-{process['name']}",
-                visibility_timeout=Duration.seconds(300),
+                visibility_timeout=Duration.seconds(amount=process.get("timeout", 300)),
                 retention_period=Duration.days(14),
             )
 
@@ -226,6 +246,7 @@ class StitchWorkerStack(Stack):
 
         # Add SNS Topic to SQS Queue
         topic.add_subscription(aws_sns_subscriptions.SqsSubscription(queue))
+        topic.add_subscription(aws_sns_subscriptions.EmailSubscription(email_address="jason@stitchstudio.ai"))
 
         # Add Lambda Function to SQS Queue
         if self.env == "local":
@@ -330,6 +351,9 @@ class StitchWorkerStack(Stack):
         security_group = aws_ec2.SecurityGroup(self, "StitchHubSecurityGroup", vpc=vpc, allow_all_outbound=True)
         security_group.add_ingress_rule(
             peer=aws_ec2.Peer.any_ipv4(), connection=aws_ec2.Port.tcp(port=5050), description="allow access to hub"
+        )
+        security_group.add_ingress_rule(
+            peer=aws_ec2.Peer.any_ipv4(), connection=aws_ec2.Port.tcp(port=5445), description="allow access to postgres"
         )
 
         ec2_instance = aws_ec2.Instance(

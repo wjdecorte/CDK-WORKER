@@ -48,6 +48,8 @@ processes:
       - effect: "ALLOW"
         actions: ["s3:Get*", "s3:List*", "s3:Put*"]
         resources: ["*"]
+    timeout: 600
+    memory_size: 512
     environment:
       OPENAI_API_KEY: "${openai_api_key}"
       OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
@@ -63,6 +65,8 @@ processes:
       - effect: "ALLOW"
         actions: ["s3:Get*", "s3:List*", "s3:Put*"]
         resources: ["*"]
+    timeout: 600
+    memory_size: 256
     environment:
       OPENAI_API_KEY: "${openai_api_key}"
       PINECONE_API_KEY: "${pinecone_api_key}"
@@ -161,7 +165,7 @@ processes:
     module: "feature_extraction"
     event_pattern:
       source: ["stitch.worker"]
-      detail_type: ["BlockStandardizationCompleted"]
+      detail_type: ["BlockRefinementCompleted"]
       detail:
         metadata:
           feature_types: [{"exists": true}]
