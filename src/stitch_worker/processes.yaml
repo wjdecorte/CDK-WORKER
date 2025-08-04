@@ -122,6 +122,8 @@ processes:
       PINECONE_INDEX_NAME: "${pinecone_index_name}"
       OPENAI_API_KEY: "${openai_api_key}"
       OPENAI_EMBEDDING_MODEL: "${openai_embedding_model}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
+      CHAT_COMPLETION_TEMPERATURE: "${chat_completion_temperature}"
 
   - name: "document-summarization"
     enabled: "${lambda_document_summarization}"
@@ -170,7 +172,17 @@ processes:
         metadata:
           feature_types: [{"exists": true}]
     id_prefix: "FeatureExtraction"
-    additional_policies: []
+    additional_policies:
+      - effect: "ALLOW"
+        actions: ["s3:Get*", "s3:List*"]
+        resources: ["*"]
+    environment:
+      OPENAI_API_KEY: "${openai_api_key}"
+      OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
+      OPENAI_EMBEDDING_MODEL: "${openai_embedding_model}"
+      PINECONE_API_KEY: "${pinecone_api_key}"
+      PINECONE_INDEX_NAME: "${pinecone_index_name}"
+      CHAT_COMPLETION_TEMPERATURE: "${chat_completion_temperature}"
 
   - name: "split-file"
     enabled: "${lambda_split_file}"

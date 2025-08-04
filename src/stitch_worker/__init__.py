@@ -13,7 +13,7 @@ class StitchWorkerSettings(BaseSettings):
     lambda_block_cropping: bool = True
     lambda_document_summarization: bool = True
     lambda_seed_question_extraction: bool = True
-    lambda_feature_extraction: bool = False
+    lambda_feature_extraction: bool = True
     lambda_document_extraction: bool = True
     lambda_split_file: bool = True
     openai_api_key: str | None = None
