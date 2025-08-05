@@ -170,7 +170,7 @@ processes:
       detail_type: ["BlockRefinementCompleted"]
       detail:
         metadata:
-          feature_types: [{"exists": true}]
+          feature_types_count: [{"numeric": [">", 0]}]
     id_prefix: "FeatureExtraction"
     additional_policies:
       - effect: "ALLOW"
