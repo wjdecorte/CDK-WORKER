@@ -176,6 +176,8 @@ processes:
       - effect: "ALLOW"
         actions: ["s3:Get*", "s3:List*"]
         resources: ["*"]
+    memory_size: 512
+    timeout: 600
     environment:
       OPENAI_API_KEY: "${openai_api_key}"
       OPENAI_CHAT_COMPLETION_MODEL: "${openai_chat_completion_model}"
